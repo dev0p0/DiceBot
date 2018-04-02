@@ -21,18 +21,22 @@ namespace DiceBot
         long uid = 0;
         DateTime lastupdate = new DateTime();
         HttpClient Client;// = new HttpClient { BaseAddress = new Uri("https://api.primedice.com/api/") };
-        public static string[] sCurrencies = new string[] { "btc","ltc","doge","eth" };
+        public static string[] sCurrencies = new string[] { "btc", "ltc", "doge", "eth", "burst", "dash", "zec", "bch","xmr","etc" };
         HttpClientHandler ClientHandlr;
         
         public Bitsler(cDiceBot Parent)
         {
-            Currencies = new string[] { "btc","ltc","doge" };
-            maxRoll = 99.999m;
+            _MFAText = "API Key";
+            ShowXtra = true;
+            
+
+            Currencies = sCurrencies;
+            maxRoll = 99.99m;
             AutoInvest = false;
             AutoWithdraw = false;
             ChangeSeed = true;
             AutoLogin = true;
-            BetURL = "https://api.primedice.com/bets/";
+            BetURL = "https://www.bitsler.com/?ref=seuntjie/";
             /*Thread t = new Thread(GetBalanceThread);
             t.Start();*/
             this.Parent = Parent;
@@ -57,47 +61,107 @@ namespace DiceBot
                         List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
                         pairs.Add(new KeyValuePair<string, string>("access_token", accesstoken));
                         FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                        string sEmitResponse = Client.PostAsync("getuserstats", Content).Result.Content.ReadAsStringAsync().Result;
-                        bsStatsBase bsstatsbase = json.JsonDeserialize<bsStatsBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
-                        if (bsstatsbase != null)
-                            if (bsstatsbase._return != null)
-                                if (bsstatsbase._return.success == "true")
+                        HttpResponseMessage resp = Client.PostAsync("api/getuserstats", Content).Result;
+
+                        string s1 = "";
+                        string sEmitResponse = "";// resp.Content.ReadAsStringAsync().Result;
+
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            sEmitResponse = resp.Content.ReadAsStringAsync().Result;
+                        }
+                        else
+                        {
+                            sEmitResponse = "";
+                            if (resp.StatusCode == HttpStatusCode.ServiceUnavailable)
+                            {
+                                s1 = resp.Content.ReadAsStringAsync().Result;
+                                //cflevel = 0;
+                                System.Threading.Tasks.Task.Factory.StartNew(() =>
                                 {
-                                    switch (Currency.ToLower())
-                                    {
-                                        case "btc": balance = bsstatsbase._return.btc_balance;
-                                            profit = bsstatsbase._return.btc_profit;
-                                            wagered = bsstatsbase._return.btc_wagered; break;
-                                        case "ltc": balance = bsstatsbase._return.ltc_balance;
-                                            profit = bsstatsbase._return.ltc_profit;
-                                            wagered = bsstatsbase._return.ltc_wagered; break;
-                                        case "doge": balance = bsstatsbase._return.doge_balance;
-                                            profit = bsstatsbase._return.doge_profit;
-                                            wagered = bsstatsbase._return.doge_wagered; break;
-                                        case "eth": balance = bsstatsbase._return.eth_balance;
-                                            profit = bsstatsbase._return.eth_profit;
-                                            wagered = bsstatsbase._return.eth_wagered; break;
-                                    }
-                                    bets = int.Parse(bsstatsbase._return.bets);
-                                    wins = int.Parse(bsstatsbase._return.wins);
-                                    losses = int.Parse(bsstatsbase._return.losses);
-
-                                    Parent.updateBalance(balance);
-                                    Parent.updateBets(bets);
-                                    Parent.updateLosses(losses);
-                                    Parent.updateProfit(profit);
-                                    Parent.updateWagered(wagered);
-                                    Parent.updateWins(wins);
-                                }
-                                else
+                                    System.Windows.Forms.MessageBox.Show(Name + " has their cloudflare protection on HIGH\n\nThis will cause a slight delay in logging in. Please allow up to a minute.");
+                                });
+                                if (!Cloudflare.doCFThing(s1, Client, ClientHandlr, 0, "www.bitsler.com"))
                                 {
-                                    if (bsstatsbase._return.value != null)
-                                    {
-
-                                        Parent.updateStatus(bsstatsbase._return.value);
-
-                                    }
+                                    //return;
                                 }
+                            }
+                            else
+                            {
+
+                            }
+                        }
+                        if (sEmitResponse != "")
+                        {
+                            bsStatsBase bsstatsbase = json.JsonDeserialize<bsStatsBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
+                            if (bsstatsbase != null)
+                                if (bsstatsbase._return != null)
+                                    if (bsstatsbase._return.success == "true")
+                                    {
+                                        switch (Currency.ToLower())
+                                        {
+                                            case "btc":
+                                                balance = bsstatsbase._return.btc_balance;
+                                                profit = bsstatsbase._return.btc_profit;
+                                                wagered = bsstatsbase._return.btc_wagered; break;
+                                            case "ltc":
+                                                balance = bsstatsbase._return.ltc_balance;
+                                                profit = bsstatsbase._return.ltc_profit;
+                                                wagered = bsstatsbase._return.ltc_wagered; break;
+                                            case "doge":
+                                                balance = bsstatsbase._return.doge_balance;
+                                                profit = bsstatsbase._return.doge_profit;
+                                                wagered = bsstatsbase._return.doge_wagered; break;
+                                            case "eth":
+                                                balance = bsstatsbase._return.eth_balance;
+                                                profit = bsstatsbase._return.eth_profit;
+                                                wagered = bsstatsbase._return.eth_wagered; break;
+                                            case "burst":
+                                                balance = bsstatsbase._return.burst_balance;
+                                                profit = bsstatsbase._return.burst_profit;
+                                                wagered = bsstatsbase._return.burst_wagered; break;
+                                            case "dash":
+                                                balance = bsstatsbase._return.dash_balance;
+                                                profit = bsstatsbase._return.dash_profit;
+                                                wagered = bsstatsbase._return.dash_wagered; break;
+                                            case "zec":
+                                                balance = bsstatsbase._return.zec_balance;
+                                                profit = bsstatsbase._return.zec_profit;
+                                                wagered = bsstatsbase._return.zec_wagered; break;
+                                            case "bch":
+                                                balance = bsstatsbase._return.bch_balance;
+                                                profit = bsstatsbase._return.bch_profit;
+                                                wagered = bsstatsbase._return.bch_wagered; break;
+                                            case "xmr":
+                                                balance = bsstatsbase._return.xmr_balance;
+                                                profit = bsstatsbase._return.xmr_profit;
+                                                wagered = bsstatsbase._return.xmr_wagered; break;
+                                            case "etc":
+                                                balance = bsstatsbase._return.etc_balance;
+                                                profit = bsstatsbase._return.etc_profit;
+                                                wagered = bsstatsbase._return.etc_wagered; break;
+                                        }
+                                        bets = int.Parse(bsstatsbase._return.bets);
+                                        wins = int.Parse(bsstatsbase._return.wins);
+                                        losses = int.Parse(bsstatsbase._return.losses);
+
+                                        Parent.updateBalance(balance);
+                                        Parent.updateBets(bets);
+                                        Parent.updateLosses(losses);
+                                        Parent.updateProfit(profit);
+                                        Parent.updateWagered(wagered);
+                                        Parent.updateWins(wins);
+                                    }
+                                    else
+                                    {
+                                        if (bsstatsbase._return.value != null)
+                                        {
+
+                                            Parent.updateStatus(bsstatsbase._return.value);
+
+                                        }
+                                    }
+                        }
                     }
                     catch { }
                 }
@@ -116,7 +180,7 @@ namespace DiceBot
                     List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
                     pairs.Add(new KeyValuePair<string, string>("access_token", accesstoken));
                     FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                    string sEmitResponse = Client.PostAsync("getuserstats", Content).Result.Content.ReadAsStringAsync().Result;
+                    string sEmitResponse = Client.PostAsync("api/getuserstats", Content).Result.Content.ReadAsStringAsync().Result;
                     bsStatsBase bsstatsbase = json.JsonDeserialize<bsStatsBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
                     if (bsstatsbase != null)
                         if (bsstatsbase._return != null)
@@ -136,6 +200,30 @@ namespace DiceBot
                                     case "eth": balance = bsstatsbase._return.eth_balance;
                                         profit = bsstatsbase._return.eth_profit;
                                         wagered = bsstatsbase._return.eth_wagered; break;
+                                    case "burst":
+                                        balance = bsstatsbase._return.burst_balance;
+                                        profit = bsstatsbase._return.burst_profit;
+                                        wagered = bsstatsbase._return.burst_wagered; break;
+                                    case "dash":
+                                        balance = bsstatsbase._return.dash_balance;
+                                        profit = bsstatsbase._return.dash_profit;
+                                        wagered = bsstatsbase._return.dash_wagered; break;
+                                    case "zec":
+                                        balance = bsstatsbase._return.zec_balance;
+                                        profit = bsstatsbase._return.zec_profit;
+                                        wagered = bsstatsbase._return.zec_wagered; break;
+                                    case "bch":
+                                        balance = bsstatsbase._return.bch_balance;
+                                        profit = bsstatsbase._return.bch_profit;
+                                        wagered = bsstatsbase._return.bch_wagered; break;
+                                    case "xmr":
+                                        balance = bsstatsbase._return.xmr_balance;
+                                        profit = bsstatsbase._return.xmr_profit;
+                                        wagered = bsstatsbase._return.xmr_wagered; break;
+                                    case "etc":
+                                        balance = bsstatsbase._return.etc_balance;
+                                        profit = bsstatsbase._return.etc_profit;
+                                        wagered = bsstatsbase._return.etc_wagered; break;
                                 }
                                 bets = int.Parse(bsstatsbase._return.bets);
                                 wins = int.Parse(bsstatsbase._return.wins);
@@ -184,21 +272,26 @@ devise:btc*/
                 pairs.Add(new KeyValuePair<string, string>("devise", Currency));
                 pairs.Add(new KeyValuePair<string, string>("api_key", "0b2edbfe44e98df79665e52896c22987445683e78"));
                 FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                string sEmitResponse = Client.PostAsync("bet", Content).Result.Content.ReadAsStringAsync().Result;
+                HttpResponseMessage tmpmsg = Client.PostAsync("api/bet", Content).Result;
+                string sEmitResponse = tmpmsg.Content.ReadAsStringAsync().Result;
                 bsBetBase bsbase = null;
                 try
                 {
                     bsbase = json.JsonDeserialize<bsBetBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
                 }
-                catch
-                { }
+                catch (Exception e)
+                {
+
+                }
                 
                 if (bsbase!=null)
                     if (bsbase._return!=null)
                         if (bsbase._return.success == "true")
                         {
                             balance = decimal.Parse(bsbase._return.new_balance, System.Globalization.NumberFormatInfo.InvariantInfo);
+                            lastupdate = DateTime.Now;
                             Bet tmp = bsbase._return.ToBet();
+                            tmp.Guid = tmpob.Guid;
                             profit += (decimal)tmp.Profit;
                             wagered += (decimal)tmp.Amount;
                             tmp.date = DateTime.Now;
@@ -244,10 +337,10 @@ devise:btc*/
                 Parent.updateStatus("An Unknown error has ocurred.");
             }
         }
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
             System.Threading.Thread tBetThread = new Thread(new ParameterizedThreadStart(PlaceBetThread));
-            tBetThread.Start(new PlaceBetObj(High, amount, chance));
+            tBetThread.Start(new PlaceBetObj(High, amount, chance, Guid));
         }
 
         Random R = new Random();
@@ -266,7 +359,7 @@ devise:btc*/
                     pairs.Add(new KeyValuePair<string, string>("username", username));
                     pairs.Add(new KeyValuePair<string, string>("seed_client", R.Next(0, int.MaxValue).ToString()));
                     FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                    string sEmitResponse = Client.PostAsync("change-seeds", Content).Result.Content.ReadAsStringAsync().Result;
+                    string sEmitResponse = Client.PostAsync("api/change-seeds", Content).Result.Content.ReadAsStringAsync().Result;
                     bsResetSeedBase bsbase = json.JsonDeserialize<bsResetSeedBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
                     //sqlite_helper.InsertSeed(bsbase._return.last_seeds_revealed.seed_server_hashed, bsbase._return.last_seeds_revealed.seed_server_revealed);
                     sqlite_helper.InsertSeed(bsbase._return.last_seeds_revealed.seed_server, bsbase._return.last_seeds_revealed.seed_server_revealed);
@@ -311,23 +404,61 @@ devise:btc*/
         {
             string error = "";
             ClientHandlr = new HttpClientHandler { UseCookies = true, AutomaticDecompression = DecompressionMethods.Deflate | DecompressionMethods.GZip, Proxy = this.Prox, UseProxy = Prox != null };
-            Client = new HttpClient(ClientHandlr) { BaseAddress = new Uri("https://www.bitsler.com/api/") };
+            Client = new HttpClient(ClientHandlr) { BaseAddress = new Uri("https://www.bitsler.com/") };
             Client.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
             Client.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
+            Client.DefaultRequestHeaders.Add("User-Agent", "DiceBot");
+
             try
             {
+                string actual2fa = "";
+                if (twofa.Contains("&"))
+                {
+                    string[] pars = twofa.Split('&');
+                    actual2fa = pars[1];
+                    twofa = pars[0];
+                }
+                HttpResponseMessage resp = Client.GetAsync("https://www.bitsler.com").Result;
+                string s1 = "";
 
+                if (resp.IsSuccessStatusCode)
+                {
+                    s1 = resp.Content.ReadAsStringAsync().Result;
+                }
+                else
+                {
+                    if (resp.StatusCode == HttpStatusCode.ServiceUnavailable)
+                    {
+                        s1 = resp.Content.ReadAsStringAsync().Result;
+                        //cflevel = 0;
+                        System.Threading.Tasks.Task.Factory.StartNew(() =>
+                        {
+                            System.Windows.Forms.MessageBox.Show(Name+ " has their cloudflare protection on HIGH\n\nThis will cause a slight delay in logging in. Please allow up to a minute.");
+                        });
+                        if (!Cloudflare.doCFThing(s1, Client, ClientHandlr, 0, "www.bitsler.com"))
+                        {
+                            return;
+                        }
+                    }
+                    else
+                    {
+
+                    }
+                }
                 List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
                 pairs.Add(new KeyValuePair<string, string>("username", Username));
                 pairs.Add(new KeyValuePair<string, string>("password", Password));
-                pairs.Add(new KeyValuePair<string, string>("api_key", "0b2edbfe44e98df79665e52896c22987445683e78"));
-                //if (!string.IsNullOrWhiteSpace(twofa))
+                //pairs.Add(new KeyValuePair<string, string>("api_key", "0b2edbfe44e98df79665e52896c22987445683e78"));
+                if (!string.IsNullOrWhiteSpace(actual2fa))
                 {
-                    pairs.Add(new KeyValuePair<string, string>("twofactor", twofa));
+                    pairs.Add(new KeyValuePair<string, string>("twofactor", actual2fa));
                 }
-
+                pairs.Add(new KeyValuePair<string, string>("api_key", twofa));
                 FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                string sEmitResponse = Client.PostAsync("login", Content).Result.Content.ReadAsStringAsync().Result;
+                HttpResponseMessage tmpresp = Client.PostAsync("api/login", Content).Result;
+
+                byte[] bytes = tmpresp.Content.ReadAsByteArrayAsync().Result;
+                string sEmitResponse = tmpresp.Content.ReadAsStringAsync().Result;
                 
                 //getuserstats 
                 bsloginbase bsbase = json.JsonDeserialize<bsloginbase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
@@ -344,7 +475,7 @@ devise:btc*/
                             pairs = new List<KeyValuePair<string, string>>();
                             pairs.Add(new KeyValuePair<string, string>("access_token", accesstoken));
                             Content = new FormUrlEncodedContent(pairs);
-                            sEmitResponse = Client.PostAsync("getuserstats", Content).Result.Content.ReadAsStringAsync().Result;
+                            sEmitResponse = Client.PostAsync("api/getuserstats", Content).Result.Content.ReadAsStringAsync().Result;
                             bsStatsBase bsstatsbase = json.JsonDeserialize<bsStatsBase>(sEmitResponse.Replace("\"return\":", "\"_return\":"));
                             if (bsstatsbase != null)
                                 if (bsstatsbase._return != null)
@@ -364,10 +495,34 @@ devise:btc*/
                                             case "eth": balance = bsstatsbase._return.eth_balance;
                                                 profit = bsstatsbase._return.eth_profit;
                                                 wagered = bsstatsbase._return.eth_wagered; break;
+                                            case "burst":
+                                                balance = bsstatsbase._return.burst_balance;
+                                                profit = bsstatsbase._return.burst_profit;
+                                                wagered = bsstatsbase._return.burst_wagered; break;
+                                            case "dash":
+                                                balance = bsstatsbase._return.dash_balance;
+                                                profit = bsstatsbase._return.dash_profit;
+                                                wagered = bsstatsbase._return.dash_wagered; break;
+                                            case "zec":
+                                                balance = bsstatsbase._return.zec_balance;
+                                                profit = bsstatsbase._return.zec_profit;
+                                                wagered = bsstatsbase._return.zec_wagered; break;
+                                            case "bch":
+                                                balance = bsstatsbase._return.bch_balance;
+                                                profit = bsstatsbase._return.bch_profit;
+                                                wagered = bsstatsbase._return.bch_wagered; break;
+                                            case "xmr":
+                                                balance = bsstatsbase._return.xmr_balance;
+                                                profit = bsstatsbase._return.xmr_profit;
+                                                wagered = bsstatsbase._return.xmr_wagered; break;
+                                            case "etc":
+                                                balance = bsstatsbase._return.etc_balance;
+                                                profit = bsstatsbase._return.etc_profit;
+                                                wagered = bsstatsbase._return.etc_wagered; break;
                                         }
-                                        bets = int.Parse(bsstatsbase._return.bets);
-                                        wins = int.Parse(bsstatsbase._return.wins);
-                                        losses = int.Parse(bsstatsbase._return.losses);
+                                        bets = int.Parse(bsstatsbase._return.bets==null?"0": bsstatsbase._return.bets);
+                                        wins = int.Parse(bsstatsbase._return.wins == null ? "0" : bsstatsbase._return.wins);
+                                        losses = int.Parse(bsstatsbase._return.losses == null ? "0" : bsstatsbase._return.losses);
 
                                         Parent.updateBalance(balance);
                                         Parent.updateBets(bets);
@@ -401,9 +556,9 @@ devise:btc*/
                         }
 
             }
-            catch 
+            catch (Exception e)
             {
-
+                Parent.DumpLog(e.ToString(), 0);
             }
             finishedlogin(false);
         }
@@ -419,69 +574,92 @@ devise:btc*/
             //return true;
 
             int type_delay=0;
-            //double (double)amount=LastBet(double)amount;
+            
             if (Currency.ToLower() == "btc") {
-                if (LastBetAmount< 0.00000010|| (double)amount < 0.00000010 )
+                if (LastBetAmount<= 0.00000005|| (double)amount <= 0.00000005 )
                     type_delay = 1;
-                else if (LastBetAmount< 0.00000100|| (double)amount < 0.00000100)
+                else 
                     type_delay = 2;
-                else if (LastBetAmount< 0.00000500|| (double)amount < 0.00000500)
-                    type_delay = 3;
-                else if (LastBetAmount< 0.00002000|| (double)amount < 0.00002000)
-                    type_delay = 4;
-                else
-                    type_delay = 5;
             }
             else if (Currency.ToLower() == "eth")
             {
-                if (LastBetAmount< 0.00001000|| (double)amount < 0.00001000)
+                if (LastBetAmount<= 0.00000250|| (double)amount <= 0.00000250)
                     type_delay = 1;
-                else if (LastBetAmount< 0.00005000|| (double)amount < 0.00005000)
+                else 
                     type_delay = 2;
-                else if (LastBetAmount< 0.00010000|| (double)amount < 0.00010000)
-                    type_delay = 3;
-                else if (LastBetAmount< 0.00025000|| (double)amount < 0.00025000)
-                    type_delay = 4;
-                else
-                    type_delay = 5;
+               
             }
             else if (Currency.ToLower() == "ltc")
             {
-                if (LastBetAmount< 0.00010000|| (double)amount < 0.00010000)
+                if (LastBetAmount<= 0.00001000 || (double)amount <= 0.00001000)
                     type_delay = 1;
-                else if (LastBetAmount< 0.00025000|| (double)amount < 0.00025000)
+                else 
                     type_delay = 2;
-                else if (LastBetAmount< 0.00050000|| (double)amount < 0.00050000)
-                    type_delay = 3;
-                else if (LastBetAmount< 0.00200000|| (double)amount < 0.00200000)
-                    type_delay = 4;
-                else
-                    type_delay = 5;
+                
             }
             else if (Currency.ToLower() == "doge")
             {
-                if (LastBetAmount< 10|| (double)amount < 10)
+                if (LastBetAmount<= 5.00000000 || (double)amount <= 5.00000000)
                     type_delay = 1;
-                else if (LastBetAmount< 50|| (double)amount < 50)
-                    type_delay = 2;
-                else if (LastBetAmount< 200|| (double)amount < 200)
-                    type_delay = 3;
-                else if (LastBetAmount < 1000 || (double)amount < 1000)
-                    type_delay = 4;
                 else
-                    type_delay = 5;
+                    type_delay = 2;
+
+            }
+            else if (Currency.ToLower() == "burst")
+            {
+                if (LastBetAmount <= 5.00000000 || (double)amount <= 5.00000000)
+                    type_delay = 1;
+                else 
+                    type_delay = 2;
+                
+            }
+            else if (Currency.ToLower() == "bch")
+            {
+                if (LastBetAmount <= 0.00000025 || (double)amount <= 0.00000025)
+                    type_delay = 1;
+                else
+                    type_delay = 2;
+
+            }
+            else if (Currency.ToLower() == "dash")
+            {
+                if (LastBetAmount <= 0.00000025 || (double)amount <= 0.00000025)
+                    type_delay = 1;
+                else
+                    type_delay = 2;
+
+            }
+            else if (Currency.ToLower() == "zec")
+            {
+                if (LastBetAmount <= 0.00000025 || (double)amount <= 0.00000025)
+                    type_delay = 1;
+                else
+                    type_delay = 2;
+
+            }
+            else if (Currency.ToLower() == "xmr")
+            {
+                if (LastBetAmount <= 0.00000025 || (double)amount <= 0.00000025)
+                    type_delay = 1;
+                else
+                    type_delay = 2;
+
+            }
+            else if (Currency.ToLower() == "etc")
+            {
+                if (LastBetAmount <= 0.00000025 || (double)amount <= 0.00000025)
+                    type_delay = 1;
+                else
+                    type_delay = 2;
+
             }
             int delay = 0;
             if (type_delay == 1)
-                delay = 700;
+                delay = 300;
             else if (type_delay == 2)
-                delay = 400;
-            else if (type_delay == 3)
-                delay = 250;
-            else if (type_delay == 4)
-                delay = 150;
+                delay = 200;            
             else
-                delay = 50;
+                delay = 200;
 
             return (DateTime.Now - LastBet).TotalMilliseconds > delay;
         }
@@ -603,6 +781,7 @@ devise:btc*/
         public bsLogin _return { get; set; }
     }
     //"{\"return\":{\"success\":\"true\",\"balance\":1.0e-5,\"wagered\":0,\"profit\":0,\"bets\":\"0\",\"wins\":\"0\",\"losses\":\"0\"}}"
+    //{"return":{"success":"true","bets":0,"wins":0,"losses":0,"btc_profit":"0.00000000","btc_wagered":"0.00000000","btc_balance":"0.00000000","eth_profit":"0.00000000","eth_wagered":"0.00000000","eth_balance":"0.00000000","ltc_profit":"0.00000000","ltc_wagered":"0.00000000","ltc_balance":"0.00000000","bch_profit":"0.00000000","bch_wagered":"0.00000000","bch_balance":"0.00000000","doge_profit":"0.00000000","doge_wagered":"0.00000000","doge_balance":"0.00000000","dash_profit":"0.00000000","dash_wagered":"0.00000000","dash_balance":"0.00000000","zec_profit":"0.00000000","zec_wagered":"0.00000000","zec_balance":"0.00000000","burst_profit":"0.00000000","burst_wagered":"0.00000000","burst_balance":"0.00000000"}}
     public class bsStats
     {
         public string success { get; set; }
@@ -621,6 +800,26 @@ devise:btc*/
         public decimal eth_balance { get; set; }
         public decimal eth_wagered { get; set; }
         public decimal eth_profit { get; set; }
+        public decimal burst_balance { get; set; }
+        public decimal burst_wagered { get; set; }
+        public decimal zec_profit { get; set; }
+        public decimal zec_balance { get; set; }
+        public decimal zec_wagered { get; set; }
+        public decimal bch_profit { get; set; }
+        public decimal bch_balance { get; set; }
+        public decimal bch_wagered { get; set; }
+        public decimal dash_profit { get; set; }
+        public decimal dash_balance { get; set; }
+        public decimal dash_wagered { get; set; }
+        public decimal burst_profit { get; set; }
+        public decimal etc_balance { get; set; }
+        public decimal etc_wagered { get; set; }
+        public decimal etc_profit { get; set; }
+
+        public decimal xmr_balance { get; set; }
+        public decimal xmr_wagered { get; set; }
+        public decimal xmr_profit { get; set; }
+
         public string wins { get; set; }
         public string losses { get; set; }
     }

@@ -46,7 +46,7 @@ namespace DiceBot
                     //Client.Send("62");
                     Client.Close();
                     StartSocket();
-                    /*string msg = string.Format("61,{0},{2},{1}", uid, ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"))["PHPSESSID"].Value + "\r\n", Rooms[Currency.ToLower()]);
+                    /*string msg = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"61,{0},{2},{1}", uid, ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"))["PHPSESSID"].Value + "\r\n", Rooms[Currency.ToLower()]);
 
                     Client.Send(msg);*/
                 }
@@ -104,13 +104,14 @@ namespace DiceBot
 
         bool IsFJ = false;
         bool IsLoggedIn = false;
-
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        string Guid = "";
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
+            this.Guid = Guid;
             chance = High ? 99.99m - chance : chance;
             decimal tmpamount = (decimal)amount;
             decimal tmpchancet = (decimal)chance;
-            string s = string.Format("64,{0:0.00000000},{1},{2},{3}\r\n", tmpamount, (int)(tmpchancet * 100), High ? 1 : 0, 1/*R.Next(0, int.MaxValue-1000000)*/);
+            string s = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"64,{0:0.00000000},{1},{2},{3}\r\n", tmpamount, (int)(tmpchancet * 100), High ? 1 : 0, 1/*R.Next(0, int.MaxValue-1000000)*/);
             string[] Something = s.Split('\n');
             
             Client.Send(Something[0]+"\n");
@@ -122,7 +123,7 @@ namespace DiceBot
         {
             bool High = (bool)_High;
             chance = High ? 99.99m - chance : chance;
-            string s = string.Format("64,{0:0.00000000},{1},{2},{3}\r\n", amount, (int)(chance * 100), High ? 1 : 0, R.Next(0, int.MaxValue));
+            string s = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"64,{0:0.00000000},{1},{2},{3}\r\n", amount, (int)(chance * 100), High ? 1 : 0, R.Next(0, int.MaxValue));
             
             Client.Send(s);
             
@@ -209,11 +210,11 @@ namespace DiceBot
         {
             
             try
-            {
-                /*ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls
+             {
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls
        | SecurityProtocolType.Tls11
        | SecurityProtocolType.Tls12
-       | SecurityProtocolType.Ssl3;*/
+       | SecurityProtocolType.Ssl3;
                 cookies = new CookieContainer();
                 ClientHandlr = new HttpClientHandler
                 {
@@ -224,21 +225,14 @@ namespace DiceBot
                     UseProxy = this.Prox != null
                 };
                 WebClient = new HttpClient(ClientHandlr) { BaseAddress = new Uri("https://fortunejack.com/") };
-                WebClient.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
-                WebClient.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
-                WebClient.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("br"));
                 WebClient.DefaultRequestHeaders.Host = "fortunejack.com";
-                WebClient.DefaultRequestHeaders.Add("Origin", "https://fortunejack.com");
-                WebClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0");
-                string tmps = json.ToDateString(DateTime.UtcNow);
+                WebClient.DefaultRequestHeaders.Add("Upgrade-Insecure-Requests", "1");
+                WebClient.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; …) Gecko/20100101 Firefox/57.0");
                 
-                /*HttpWebRequest betrequest = (HttpWebRequest)HttpWebRequest.Create("https://fortunejack.com/");
-                    if (Prox != null)
-                        betrequest.Proxy = Prox;
-                    betrequest.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
-                    betrequest.CookieContainer = Cookies;
-                HttpWebResponse EmitResponse;*/
-                string s1 = "";
+                //WebClient.DefaultRequestHeaders.Add("useragent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Safari/537.36");
+
+                
+               string s1 = "";
                     try
                     {
                         HttpResponseMessage resp = WebClient.GetAsync("").Result;
@@ -248,6 +242,8 @@ namespace DiceBot
                         }
                         else
                         {
+                            s1 = resp.Content.ReadAsStringAsync().Result;
+
                             if (resp.StatusCode == HttpStatusCode.ServiceUnavailable)
                             {
                                 s1 = resp.Content.ReadAsStringAsync().Result;
@@ -314,7 +310,7 @@ namespace DiceBot
                 CookieCollection tmp = ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"));
                 List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
                 FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                string sEmitResponse = WebClient.PostAsync("ajax/time.php", Content).Result.Content.ReadAsStringAsync().Result;
+                string sEmitResponse = WebClient.PostAsync("ajax/time.php?_=" + json.CurrentDate(), Content).Result.Content.ReadAsStringAsync().Result;
                 //https://fortunejack.com/ajax/gamesSearch.php
                 pairs = new List<KeyValuePair<string, string>>();
                 Content = new FormUrlEncodedContent(pairs);
@@ -322,11 +318,13 @@ namespace DiceBot
                
                 pairs = new List<KeyValuePair<string, string>>();
                 Content = new FormUrlEncodedContent(pairs);
-                sEmitResponse = WebClient.PostAsync("ajax/time.php", Content).Result.Content.ReadAsStringAsync().Result;
-                
+                sEmitResponse = WebClient.PostAsync("ajax/time.php?_=" + json.CurrentDate(), Content).Result.Content.ReadAsStringAsync().Result;
+
+
 
                 tmp = ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"));
-                
+                string tmps = json.ToDateString(DateTime.UtcNow);
+
                 pairs = new List<KeyValuePair<string, string>>();
                 pairs.Add(new KeyValuePair<string, string>("logName", Username));
                 pairs.Add(new KeyValuePair<string, string>("logPassword", Password));
@@ -338,7 +336,7 @@ namespace DiceBot
                 
                 try
                 {
-                    sEmitResponse = WebClient.PostAsync("ajax/login.php", Content).Result.Content.ReadAsStringAsync().Result;
+                    sEmitResponse = WebClient.PostAsync("https://fortunejack.com/ajax/login.php", Content).Result.Content.ReadAsStringAsync().Result;
                     if (!sEmitResponse.Contains("success"))
                     { finishedlogin(false); return; }
                 }
@@ -493,8 +491,8 @@ namespace DiceBot
                             serverseed = (RetObjs[10]),
                             clientseed = (RetObjs[11]),
                             high = RetObjs[8] == "1",
-                            uid = int.Parse(RetObjs[3])
-                            
+                            uid = int.Parse(RetObjs[3]),
+                            Guid=this.Guid
                         };
                         decimal tmpChance = decimal.Parse(RetObjs[7], System.Globalization.NumberFormatInfo.InvariantInfo) / 100m;
                         Result.Chance = Result.high ? (decimal)maxRoll - tmpChance : tmpChance;
@@ -551,7 +549,7 @@ namespace DiceBot
         void Client_Opened(object sender, EventArgs e) 
         {
             
-            string msg = string.Format("61,{0},{2},{1}", uid, ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"))["PHPSESSID"].Value + "\r\n", Rooms[Currency.ToLower()]);
+            string msg = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"61,{0},{2},{1}", uid, ClientHandlr.CookieContainer.GetCookies(new Uri("https://fortunejack.com"))["PHPSESSID"].Value + "\r\n", Rooms[Currency.ToLower()]);
             
             Client.Send(msg);
            

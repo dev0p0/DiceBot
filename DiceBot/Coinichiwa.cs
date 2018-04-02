@@ -90,7 +90,7 @@ namespace DiceBot
             wagered += (decimal)tmp.Amount; 
             FinishedBet(tmp);
         }
-        protected override void internalPlaceBet(bool High, decimal chance, decimal amount)
+        protected override void internalPlaceBet(bool High, decimal chance, decimal amount, string guid)
         {
             
             this.High = High;
@@ -138,8 +138,8 @@ namespace DiceBot
                 }
                 challenge = challenge.Substring(challenge.IndexOf(":") + 1);
                 challenge = challenge.Replace(" ", "");
-                string msg = string.Format("{0}:{1}:{2}:{3}:{4}", reqID, "auth", Username, challenge, Password);
-                string msg2 = string.Format("{0}:{1}:{2}:{3}\n", reqID++, "auth", Username, computehash(msg));
+                string msg = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{0}:{1}:{2}:{3}:{4}", reqID, "auth", Username, challenge, Password);
+                string msg2 = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{0}:{1}:{2}:{3}\n", reqID++, "auth", Username, computehash(msg));
                 ReadBuffer = new byte[256];
                 for (int i = 0; i < msg2.Length && i < ReadBuffer.Length; i++)
                 {

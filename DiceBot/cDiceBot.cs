@@ -33,8 +33,8 @@ namespace DiceBot
         #endregion
 
         //Version number to test against site
-        private const string vers = "3.3.3";
-
+        private const string vers = "3.3.15";
+        
 
         Control[] ControlsToDisable;
         
@@ -154,7 +154,7 @@ namespace DiceBot
             lstFibonacci.Items.Clear();
             for (int i =0; i<100; i++)
             {
-                lstFibonacci.Items.Add(string.Format("{0}. {1}", i, Current));
+                lstFibonacci.Items.Add(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{0}. {1}", i, Current));
                 decimal tmp = Current;
                 Current += Previous;
                 Previous = tmp;
@@ -174,9 +174,22 @@ namespace DiceBot
       
         decimal Chartprofit = 0;
         delegate void dDobet(Bet bet);
+
+        Queue<string> Last10Guids = new Queue<string>();
         public void GetBetResult(decimal Balance, Bet bet)
         {
-            DumpLog("received bet result: Balance: "+Balance+", Bet:"+json.JsonSerializer<Bet>(bet) , 6);
+            DumpLog("received bet result: Balance: "+Balance+", Bet:"+json.JsonSerializer<Bet>(bet) , 8);
+            if (bet.Guid!=LastBetPlaced || Last10Guids.Contains(bet.Guid))
+            {
+                
+                Stop("Bet result received does not match last bet placed! Stopping for your safety.");
+                //updateStatus("Bet result received does not match last bet placed!");
+            }
+            if (!Last10Guids.Contains(bet.Guid))
+                Last10Guids.Enqueue(bet.Guid);
+            while (Last10Guids.Count > 10)
+                Last10Guids.Dequeue();
+
             if (logging>2)
             using (StreamWriter sw = File.AppendText("log.txt"))
             {
@@ -199,8 +212,9 @@ namespace DiceBot
             }
             else
                 DoBet(bet);
-            
-            
+
+
+            //FileInfo tmp = new FileInfo("");
             
         }
         long chartbets = 1;
@@ -209,6 +223,7 @@ namespace DiceBot
         int LiveBets = 1000;
         void AddChartPoint(object Win)
         {
+
             bool win = (bool)Win;
             if (InvokeRequired)
             {
@@ -223,51 +238,69 @@ namespace DiceBot
                     {
                         chrtEmbeddedLiveChart.Series[0].Points.RemoveAt(0);
                     }
-                    var axisX = chrtEmbeddedLiveChart.ChartAreas[0].AxisX;
-                    var axisY = chrtEmbeddedLiveChart.ChartAreas[0].AxisY;
-                    axisX.Maximum = chartbets < LiveBets ? chartbets : LiveBets;
-                    axisX.Minimum = 1;// chartbets > 100 ? chartbets - 100 : 0;
-                    //--chrtEmbeddedLiveChart.Series[0].Points.Add()
-
-                    System.Windows.Forms.DataVisualization.Charting.DataPoint tmp = new System.Windows.Forms.DataVisualization.Charting.DataPoint(chartbets - 1, (double)Chartprofit);
-                    tmp.Color = win ? Color.Green : Color.Red;
-                    tmp.BorderColor = win ? Color.Green : Color.Red;
-                    tmp.MarkerColor = win ? Color.Green : Color.Red;
-
-                    tmp.MarkerSize = win ? 3 : 2;
-                    tmp.MarkerStyle = System.Windows.Forms.DataVisualization.Charting.MarkerStyle.Circle;
-                    tmp.BorderDashStyle = System.Windows.Forms.DataVisualization.Charting.ChartDashStyle.Solid;
-                    tmp.BorderWidth = 1;
-                    chrtEmbeddedLiveChart.Series[0].Points.Add(tmp);
-                    if (chrtEmbeddedLiveChart.Series[0].Points.Count > LiveBets - 1)
+                    try
                     {
-                        decimal maxy = (decimal)chrtEmbeddedLiveChart.Series[0].Points.Max<DataPoint>(x => x.YValues[0]);
-                        decimal miny = (decimal)chrtEmbeddedLiveChart.Series[0].Points.Min<DataPoint>(x => x.YValues[0]);
-                        decimal span = maxy - miny;
-                        if (maxy > (decimal)axisY.Maximum || miny < (decimal)axisY.Minimum || 
-                            (double)maxy < (axisY.Maximum - (double)(span / 2.0m)) || (double)miny > (axisY.Minimum + (double)(span / 2.0m)))
+                        var axisX = chrtEmbeddedLiveChart.ChartAreas[0].AxisX;
+                        var axisY = chrtEmbeddedLiveChart.ChartAreas[0].AxisY;
+                        axisX.Maximum = chartbets < LiveBets ? chartbets : LiveBets;
+                        axisX.Minimum = 1;// chartbets > 100 ? chartbets - 100 : 0;
+                                          //--chrtEmbeddedLiveChart.Series[0].Points.Add()
+
+                        System.Windows.Forms.DataVisualization.Charting.DataPoint tmp = new System.Windows.Forms.DataVisualization.Charting.DataPoint(chartbets - 1, (double)Chartprofit);
+                        tmp.Color = win ? Color.Green : Color.Red;
+                        tmp.BorderColor = win ? Color.Green : Color.Red;
+                        tmp.MarkerColor = win ? Color.Green : Color.Red;
+
+                        tmp.MarkerSize = win ? 3 : 2;
+                        tmp.MarkerStyle = System.Windows.Forms.DataVisualization.Charting.MarkerStyle.Circle;
+                        tmp.BorderDashStyle = System.Windows.Forms.DataVisualization.Charting.ChartDashStyle.Solid;
+                        tmp.BorderWidth = 1;
+                        chrtEmbeddedLiveChart.Series[0].Points.Add(tmp);
+                        if (chrtEmbeddedLiveChart.Series[0].Points.Count > LiveBets - 1 || chrtEmbeddedLiveChart.Series[0].Points.Count%10==0)
                         {
-                            
-                            string largespan = (span*100000000).ToString("0");
-                            decimal firstdigit = decimal.Parse((largespan.Substring(0, 1))) + 1;
-                            decimal zeros = (span * 100000000).ToString("0").Length-1;
-                            //double factor = zeros; /// 100000000;
-                            decimal newspan = firstdigit * (decimal)Math.Pow(10, ((double)zeros));
-                            newspan /= 100000000m;
-                            decimal interval = newspan / 5.0m;
+                            decimal maxy = (decimal)chrtEmbeddedLiveChart.Series[0].Points.Max<DataPoint>(x => x.YValues[0]);
+                            decimal miny = (decimal)chrtEmbeddedLiveChart.Series[0].Points.Min<DataPoint>(x => x.YValues[0]);
+                            decimal span = maxy - miny;
+                            if (maxy > (decimal)axisY.Maximum || miny < (decimal)axisY.Minimum ||
+                                (double)maxy < (axisY.Maximum - (double)(span / 2.0m)) || (double)miny > (axisY.Minimum + (double)(span / 2.0m)))
+                            {
+                                /*axisY.Maximum = double.NaN;
+                                axisY.Minimum = double.NaN;*/
+                                if ((miny > 0.0000001m || miny < -0.0000001m) && (maxy > 0.0000001m || maxy < -0.0000001m))
+                                {
+                                    string largespan = (span * 100000000).ToString("0");
+                                    decimal firstdigit = decimal.Parse((largespan.Substring(0, 1))) + 1;
+                                    decimal zeros = (span * 100000000).ToString("0").Length - 1;
+                                    //double factor = zeros; /// 100000000;
+                                    decimal newspan = firstdigit * (decimal)Math.Pow(10, ((double)zeros));
+                                    newspan /= 100000000m;
+                                    decimal interval = newspan / 5.0m;
 
-                            decimal tmp1 = maxy / (interval);
+                                    decimal tmp1 = maxy / (interval);
 
-                            decimal ceiling = Math.Ceiling(tmp1);
-                            decimal floor = Math.Floor(miny / (interval));
+                                    decimal ceiling = Math.Ceiling(tmp1);
+                                    decimal floor = Math.Floor(miny / (interval));
 
-                            decimal newmax = ceiling * interval + interval;
-                            decimal newmin = floor * interval - interval;
-                            /*axisY.Maximum = maxy * (maxy > 0 ? 1.025 : 0.975);
-                            axisY.Minimum = miny * (miny < 0 ? 1.025 : 0.975);*/
-                            axisY.Maximum = (double)newmax;
-                            axisY.Minimum = (double)newmin;
+                                    decimal newmax = ceiling * interval + interval;
+                                    decimal newmin = floor * interval - interval;
+                                    /*axisY.Maximum = maxy * (maxy > 0 ? 1.025 : 0.975);
+                                    axisY.Minimum = miny * (miny < 0 ? 1.025 : 0.975);*/
+                                    if (newmax > newmin && (newmax > 0.0000001m || newmax < -0.0000001m) && (newmin > 0.0000001m || newmin < -0.0000001m))
+                                    {
+                                        axisY.Maximum = (double)newmax;
+                                        axisY.Minimum = (double)newmin;
+                                    }
+                                    else
+                                    {
+
+                                    }
+                                }
+                            }
                         }
+                    }
+                    catch (Exception e)
+                    {
+                        DumpLog(e.ToString(), 1);
                     }
                 }
             }
@@ -275,7 +308,7 @@ namespace DiceBot
 
         void EnableNotLoggedInControls(bool Enabled)
         {
-            DumpLog("Funushed logging in. Result: " + Enabled, 6);
+            DumpLog("finished logging in. Result: " + Enabled, 6);
             foreach (Control c in ControlsToDisable)
             {
                 c.Enabled = Enabled;
@@ -403,23 +436,6 @@ namespace DiceBot
                 tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
                 
             }
-            foreach (string s in dice999.cCurrencies)
-            {
-                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
-
-                if (frst)
-                {
-                    tmpItem.Checked = true;
-                    frst = false;
-                }
-
-                dogeToolStripMenuItem.DropDown.Items.Add(tmpItem);
-                tmpItem.Click += btcToolStripMenuItem_Click;
-
-                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
-
-            }
-
             foreach (string s in SafeDice.cCurrencies)
             {
                 ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
@@ -480,22 +496,6 @@ namespace DiceBot
                 }
 
                 betterbetsToolStripMenuItem.DropDown.Items.Add(tmpItem);
-                tmpItem.Click += btcToolStripMenuItem_Click;
-
-                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
-
-            }
-            foreach (string s in WD.cCurrencies)
-            {
-                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
-
-                if (frst)
-                {
-                    tmpItem.Checked = true;
-                    frst = false;
-                }
-
-                wealthyDiceToolStripMenuItem.DropDown.Items.Add(tmpItem);
                 tmpItem.Click += btcToolStripMenuItem_Click;
 
                 tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
@@ -581,6 +581,86 @@ namespace DiceBot
                 tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
 
             }
+            foreach (string s in BitExo.sCurrencies)
+            {
+                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
+
+                if (frst)
+                {
+                    tmpItem.Checked = true;
+                    frst = false;
+                }
+
+                bitExoToolStripMenuItem.DropDown.Items.Add(tmpItem);
+                tmpItem.Click += btcToolStripMenuItem_Click;
+
+                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
+
+            }
+            foreach (string s in DiceSeuntjie.sCurrencies)
+            {
+                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
+
+                if (frst)
+                {
+                    tmpItem.Checked = true;
+                    frst = false;
+                }
+
+                diceSeuntjieComToolStripMenuItem.DropDown.Items.Add(tmpItem);
+                tmpItem.Click += btcToolStripMenuItem_Click;
+
+                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
+
+            }
+            foreach (string s in BetKing.sCurrencies)
+            {
+                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
+
+                if (frst)
+                {
+                    tmpItem.Checked = true;
+                    frst = false;
+                }
+
+                pocketRocketsCasinoToolStripMenuItem.DropDown.Items.Add(tmpItem);
+                tmpItem.Click += btcToolStripMenuItem_Click;
+
+                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
+
+            }
+            foreach(string s in YoloDice.cCurrencies)
+            {
+                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
+
+                if (frst)
+                {
+                    tmpItem.Checked = true;
+                    frst = false;
+                }
+
+                yoloDiceToolStripMenuItem.DropDown.Items.Add(tmpItem);
+                tmpItem.Click += btcToolStripMenuItem_Click;
+
+                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
+
+            }
+            foreach (string s in NitroDice.sCurrencies)
+            {
+                ToolStripMenuItem tmpItem = new ToolStripMenuItem { Text = s };
+
+                if (frst)
+                {
+                    tmpItem.Checked = true;
+                    frst = false;
+                }
+
+                nitrodiceToolStripMenuItem.DropDown.Items.Add(tmpItem);
+                tmpItem.Click += btcToolStripMenuItem_Click;
+
+                tmpItem.CheckedChanged += btcToolStripMenuItem_CheckedChanged;
+
+            }
             if (!File.Exists(Environment.GetEnvironmentVariable("APPDATA") + "\\DiceBot2\\settings"))
             {
                 if (MessageBox.Show("Dice Bot has detected that there are no default settings saved on this computer."+
@@ -650,6 +730,7 @@ namespace DiceBot
             Lua.RegisterFunction("alarm", this, new dPlayAlarm(playalarm).Method);
             Lua.RegisterFunction("ching", this, new dPlayChing(PlayChing).Method);
             Lua.RegisterFunction("resetbuiltin", this, new dPlayChing(Reset).Method);
+            Lua.RegisterFunction("exportsim", this, new dPlayChing(ExportSim).Method);
             DumpLog("constructor done", 8);
         }
         void luaStop()
@@ -784,12 +865,14 @@ namespace DiceBot
             if (stop)
             {
                 LuaRuntime.SetLua(Lua);
-                GetLuaVars();
+                //GetLuaVars();
+                //SetLuaVars();
                 LuaRuntime.Run(richTextBox3.Text);
+                GetLuaVars();
                 SimWindow.nudSimBalance.Value = (decimal)startingbalance;
                 SimWindow.nudSimNumBets.Value = (decimal)bets;
                WriteConsole("Running " + bets + " bets Simulation with starting balance of " + startingbalance);
-               btnSim_Click(SimWindow.btnSim, new EventArgs());
+               btnSim_Click(null, new EventArgs());
             }
             else
             {
@@ -844,6 +927,7 @@ namespace DiceBot
                 return null;
             }
         }
+        bool register = false;
         void CurrentSite_FinishedLogin(bool LoggedIn)
         {
             if (InvokeRequired)
@@ -863,7 +947,8 @@ namespace DiceBot
                 }
                 else
                 {
-                    MessageBox.Show("Failed to log in or register new account!", "Failed!", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    new LoginFailedForm().ShowDialog(register, CurrentSite);
+                    //MessageBox.Show("Failed to log in or register new account!", "Failed!", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     //updateStatus("Disconnected");
                 }
 
@@ -886,7 +971,9 @@ namespace DiceBot
                 if (ss[0]!=vers)
                 {
                     string newfeatures = ss.Length>1?"New features include: "+ss[1]:"";
-                    if (MessageBox.Show("A new version of DiceBot is available. "+newfeatures+" \n\nDo you want to go to the download page now?","Update Available", MessageBoxButtons.YesNo)== System.Windows.Forms.DialogResult.Yes)
+                    if (MessageBox.Show("A new version of DiceBot is available. "+newfeatures+" \n\nDo you want to go to the download page now?",
+                        "Update Available", 
+                        MessageBoxButtons.YesNo, MessageBoxIcon.None , MessageBoxDefaultButton.Button1 ,MessageBoxOptions.DefaultDesktopOnly) == System.Windows.Forms.DialogResult.Yes)
                     {
                         Process.Start("http://bot.seuntjie.com/botpage.aspx");
                     }
@@ -1026,7 +1113,16 @@ namespace DiceBot
                         lblWins2.Text = StatsWindows.lblWins.Text = Wins.ToString();
                         StatsWindows.lblWinStreak.Text = BestStreak.ToString();
                         //
-                        TimeSpan curtime = TimeSpan.Parse(StatsWindows.lblTime.Text);
+                        TimeSpan curtime = new TimeSpan(0);
+                        try
+                        {
+                            curtime = TimeSpan.Parse(StatsWindows.lblTime.Text);
+                        }
+                        catch
+                        {
+
+                        }
+                        
                         //TimeSpan curtime = DateTime.Now - dtStarted;
                         lblBets2.Text = StatsWindows.lblBets.Text = (Wins + Losses).ToString();
                         decimal profpB = 0;
@@ -1253,6 +1349,8 @@ namespace DiceBot
 
         private void Stop(string Reason)
         {
+            DumpLog(Reason+", stopping", 8);
+
             updateStatus(Reason+", stopping");
             TrayIcon.BalloonTipText = Reason + ", stopping";
             TrayIcon.ShowBalloonTip(1000);
@@ -1263,14 +1361,14 @@ namespace DiceBot
             TotalTime += (DateTime.Now - dtStarted);
             if (RunningSimulation)
             {
-                WriteConsole(string.Format("Simulation finished. Bets:{0} Wins:{1} Losses:{2} Balance:{3} Profit:{4} Worst Streak:{5} Best Streak:{6}", 
-                    Losses+Wins, Wins, Losses, PreviousBalance, profit, WorstStreak, BestStreak ));
+                WriteConsole(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Simulation finished. Bets:{0} Wins:{1} Losses:{2} Balance:{3} Profit:{4} Worst Streak:{5} Best Streak:{6}", 
+                    Losses+Wins, Wins, Losses, PreviousBalance, profit, Losestreak>WorstStreak?Losestreak:WorstStreak, Winstreak> BestStreak? Winstreak:BestStreak ));
                 Updatetext(SimWindow.lblSimLosses, Losses.ToString());
                 Updatetext(SimWindow.lblSimProfit, profit.ToString("0.00000000"));
                 Updatetext(SimWindow.lblSimWins, Wins.ToString());
                 Updatetext(SimWindow.lblSimEndBalance, PreviousBalance.ToString("0.00000000"));
-                Updatetext(SimWindow.lblSimLoseStreak, WorstStreak.ToString());
-                Updatetext(SimWindow.lblSimWinStreak, BestStreak.ToString());
+                Updatetext(SimWindow.lblSimLoseStreak, (Losestreak > WorstStreak ? Losestreak : WorstStreak).ToString());
+                Updatetext(SimWindow.lblSimWinStreak, (Winstreak > BestStreak ? Winstreak : BestStreak).ToString());
                 using (StreamWriter sw = File.AppendText(Environment.GetEnvironmentVariable("APPDATA") + "\\DiceBot2\\tempsim"))
                 {
                     foreach (string tmpbet in tempsim.bets)
@@ -1339,7 +1437,8 @@ namespace DiceBot
                 }
             
         }
-        
+
+        string LastBetPlaced = "";
         void PlaceBet()
         {
             try
@@ -1353,7 +1452,8 @@ namespace DiceBot
                 dtLastBet = DateTime.Now;
                 EnableTimer(tmBet, false);
                 CurrentSite.chance = Chance;
-                CurrentSite.PlaceBet(high,Lastbet, Chance);
+                LastBetPlaced = Guid.NewGuid().ToString();
+                CurrentSite.PlaceBet(high,Lastbet, Chance, LastBetPlaced);
                     
                 
                 
@@ -1394,6 +1494,11 @@ namespace DiceBot
                 DumpLog(e.StackTrace, 2);
                 MessageBox.Show("Failed to play CHING, pelase make sure file exists");
             }
+        }
+
+        void ExportSim()
+        {
+            btnExportSim_Click(null, new EventArgs());
         }
 
         void Withdraw()
@@ -1548,6 +1653,7 @@ namespace DiceBot
                 if (RunningSimulation)
                 {
                     setInterval(tmBet, 1);
+                    LastBetPlaced = Guid.NewGuid().ToString();
                     Simbet();
                 }
                 else
@@ -2217,8 +2323,9 @@ namespace DiceBot
                         currentprofit += profit;
                         ProfitSinceLastReset += profit;
                         StreakProfitSinceLastReset += profit;
-                        
-                        
+                        DumpLog("currentprofit: " + currentprofit.ToString(), 7);
+                        DumpLog("ProfitSinceLastReset: "+ProfitSinceLastReset.ToString(), 7);
+                        DumpLog("StreakProfitSinceLastReset: "+ StreakProfitSinceLastReset.ToString(), 7);
                         Wins++;
                         Winstreak++;
                         trazelwin++;
@@ -2261,6 +2368,7 @@ namespace DiceBot
                             {
                                 Reset();
                                 ProfitSinceLastReset = 0;
+                                DumpLog("Resetting: " + StreakProfitSinceLastReset.ToString() + ">" + nudResetBtcProfit.Value, 7);
                             }
                             if (Wins >= nudStopWins.Value && chkStopWins.Checked)
                             {
@@ -2479,7 +2587,7 @@ namespace DiceBot
 
                 if ((decimal)curtime.TotalHours >= nudStopTimeH.Value && curtime.Minutes >= (decimal)nudStopTimeM.Value && curtime.Seconds >= (decimal)nudStopTimeS.Value && chkStopTime.Checked)
                 {
-                    Stop(string.Format("Time exeeding {0}:{1}:{2}", nudStopTimeH.Value, nudStopTimeM.Value, nudStopTimeS.Value));
+                    Stop(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Time exeeding {0}:{1}:{2}", nudStopTimeH.Value, nudStopTimeM.Value, nudStopTimeS.Value));
                 }
                 
                 if (chkZigZagBets.Checked && (!programmerToolStripMenuItem.Checked || EnableProgZigZag ))
@@ -2490,7 +2598,7 @@ namespace DiceBot
                     }
                 }
                 if (!RunningSimulation)
-                if (dPreviousBalance >= Limit && chkLimit.Checked && (!programmerToolStripMenuItem.Checked))
+                if (dPreviousBalance >= Limit && chkLimit.Checked && (!programmerToolStripMenuItem.Checked || EnableReset))
                 {
 
                     if (rdbStop.Checked)
@@ -2508,23 +2616,10 @@ namespace DiceBot
 
                     }
                 }
-                if (!RunningSimulation)
-                if (dPreviousBalance - Lastbet <= LowerLimit && chkLowerLimit.Checked &&(!programmerToolStripMenuItem.Checked))
-                {
-                    //TrayIcon.BalloonTipText = "Balance lower than " + nudLowerLimit.Value + "\nStopping Bets...";
-                    TrayIcon.ShowBalloonTip(1000);
-                    Stop("Balance lower than " + nudLowerLimit.Value);
-                    if (Sound && SoundLow)
-                        playalarm();
-                    TrayIcon.BalloonTipText = "DiceBot has Stopped Betting\nThe next bet will will have put your Balance below your lower limit";
-
-                    if (Emails.Lower)
-                        Emails.SendLowLimit(dPreviousBalance, LowerLimit, Lastbet);
-                }
-
+                
 
                 if (!RunningSimulation)
-                if ( Wins!=0 && Losses!=0 && chkResetSeed.Checked && (!programmerToolStripMenuItem.Checked))
+                if ( Wins!=0 && Losses!=0 && chkResetSeed.Checked && (!programmerToolStripMenuItem.Checked || EnableReset))
                 {
                     if ( ((rdbResetSeedBets.Checked && (Wins+Losses) % nudResetSeed.Value == 0) ||
                        (rdbResetSeedWins.Checked && Wins % nudResetSeed.Value == 0 && Losestreak==0)||
@@ -2594,6 +2689,20 @@ namespace DiceBot
                     {
                         Stop("Simulation complete");
                     }
+                    if (!RunningSimulation)
+                        if (dPreviousBalance - Lastbet <= nudLowerLimit.Value && chkLowerLimit.Checked && (!programmerToolStripMenuItem.Checked || EnableReset))
+                        {
+                            //TrayIcon.BalloonTipText = "Balance lower than " + nudLowerLimit.Value + "\nStopping Bets...";
+                            //TrayIcon.ShowBalloonTip(1000);
+                            Stop("Balance lower than " + nudLowerLimit.Value);
+                            if (Sound && SoundLow)
+                                playalarm();
+                            //TrayIcon.BalloonTipText = "DiceBot has Stopped Betting\nThe next bet will will have put your Balance below your lower limit";
+
+                            if (Emails.Lower)
+                                Emails.SendLowLimit(dPreviousBalance, LowerLimit, Lastbet);
+                        }
+
                     if (!stop)
                     {
                         if (!RunningSimulation)
@@ -2628,6 +2737,10 @@ namespace DiceBot
                 LuaRuntime.SetLua(Lua);
                 LuaRuntime.Run("dobet()");
                 GetLuaVars();
+                if ((Wins+Losses)%100==0)
+                {
+                    LuaRuntime.Run("collectgarbage()");
+                }
             }
             catch (LuaException e)
             {
@@ -2735,6 +2848,7 @@ namespace DiceBot
 
                 if (RunningSimulation)
                 {
+                    LastBetPlaced = Guid.NewGuid().ToString();
                     Simbet();
                 }
                 else
@@ -2831,15 +2945,18 @@ namespace DiceBot
                     DonateBox tmp = new DonateBox();
                     if (tmp.ShowDialog(profit, CurrentSite.Currency, donatePercentage) == DialogResult.Yes)
                     {
-                        CurrentSite.Donate(tmp.amount);
-                        Thread.Sleep(200);
+                        if (Amount>=0.00000001m)
+                        { CurrentSite.Donate(tmp.amount);
+                            Thread.Sleep(200);
+                        }
                     }
                     donateMode = (tmp.radioButton3.Checked ? 3 : tmp.radioButton2.Checked ? 1 : 2);
                     donatePercentage = (decimal)tmp.numericUpDown1.Value;
                 }
                 else if (donateMode==3)
                 {
-                    CurrentSite.Donate((donatePercentage / 100.0m) * profit);
+                    if (Amount >= 0.00000001m)
+                        CurrentSite.Donate((donatePercentage / 100.0m) * profit);
                 }
             }
             Stop("");
@@ -2991,7 +3108,7 @@ namespace DiceBot
                 sw.WriteLine("ResetSeedValue|" + nudResetSeed.Value.ToString(System.Globalization.NumberFormatInfo.InvariantInfo));
                 sw.WriteLine("QuickSwitchFolder|" + txtQuickSwitch.Text);
                 sw.WriteLine("SettingsMode|" + (basicToolStripMenuItem.Checked?"0":advancedToolStripMenuItem.Checked?"1":"2"));
-                sw.WriteLine("Site|" + (justDiceToolStripMenuItem.Checked?"0":primeDiceToolStripMenuItem.Checked?"1":pocketRocketsCasinoToolStripMenuItem.Checked?"2": diceToolStripMenuItem.Checked?"3":safediceToolStripMenuItem.Checked?"4":daDiceToolStripMenuItem.Checked?"5":rollinIOToolStripMenuItem.Checked?"6":bitDiceToolStripMenuItem.Checked?"7":betterbetsToolStripMenuItem.Checked?"8":moneyPotToolStripMenuItem.Checked?"9":"1"));
+                sw.WriteLine("Site|" + (justDiceToolStripMenuItem.Checked?"0":primeDiceToolStripMenuItem.Checked?"1":pocketRocketsCasinoToolStripMenuItem.Checked?"2": diceToolStripMenuItem.Checked?"3":safediceToolStripMenuItem.Checked?"4":/*daDiceToolStripMenuItem.Checked?"5":*/rollinIOToolStripMenuItem.Checked?"6":bitDiceToolStripMenuItem.Checked?"7":betterbetsToolStripMenuItem.Checked?"8":moneyPotToolStripMenuItem.Checked?"9":"1"));
             }
         }
         
@@ -3958,7 +4075,7 @@ namespace DiceBot
             else if (e.Button == System.Windows.Forms.MouseButtons.Left)
             {
                 TrayIcon.BalloonTipTitle = "DiceBot";
-                TrayIcon.BalloonTipText = string.Format("Balance: {0:0.00000000}\n Profit: {1:0.00000000}\nCurrent Streak: {2}\nWorst Streak: {3}\nTime running: ", PreviousBalance, PreviousBalance - StartBalance, curstreak, WorstStreak) + (TotalTime + (DateTime.Now - dtStarted)).ToString(@"hh\:mm\:ss");
+                TrayIcon.BalloonTipText = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Balance: {0:0.00000000}\n Profit: {1:0.00000000}\nCurrent Streak: {2}\nWorst Streak: {3}\nTime running: ", PreviousBalance, PreviousBalance - StartBalance, curstreak, WorstStreak) + (TotalTime + (DateTime.Now - dtStarted)).ToString(@"hh\:mm\:ss");
                 TrayIcon.BalloonTipIcon = ToolTipIcon.None;
                 TrayIcon.ShowBalloonTip(800);
             }
@@ -3989,8 +4106,10 @@ namespace DiceBot
         decimal tmpStartBalance = 0;
         decimal tmpwagered = 0;
         int numSimBets = 0;
+        int RunSimBets = 0;
         void runsim()
         {
+            RunSimBets = 0;
             numSimBets = (int)SimWindow.nudSimNumBets.Value;
             tmpbalance = PreviousBalance;
             tmpwins = Wins;
@@ -4045,12 +4164,14 @@ namespace DiceBot
 
         void Simbet()
          {
+            RunSimBets++;
             dtLastBet = DateTime.Now;
             EnableTimer(tmBet, false);
             Bet tmp = new Bet();
-            if (Wins + Losses < numSimBets)
+            tmp.Guid = this.LastBetPlaced;
+            if (RunSimBets < numSimBets)
             {
-                string betstring = (Wins + Losses).ToString() + ",";
+                string betstring = (RunSimBets).ToString() + ",";
                 if (!CurrentSite.NonceBased)
                 {
                     string chars = "0123456789abcdef";
@@ -4082,7 +4203,7 @@ namespace DiceBot
                     }
                     this.server = sserver;
                 }
-                decimal number = CurrentSite.GetLucky(server, client, Wins + Losses);
+                decimal number = CurrentSite.GetLucky(server, client, RunSimBets);
                 tmp.Roll = (decimal)number;
                 tmp.Chance = (decimal)Chance;
                 tmp.Amount = (decimal)Lastbet;
@@ -4126,7 +4247,7 @@ namespace DiceBot
                 betstring += PreviousBalance + ",";
                 betstring += profit;
                 tempsim.bets.Add(betstring);
-                int bets = Wins + Losses;
+                int bets = RunSimBets;
                 if (bets % 1000 == 0)
                 {
                     Updatetext(SimWindow.lblSimProgress, ((decimal)bets / (decimal)numSimBets * 100.00m).ToString("00.00") + "%");
@@ -4174,6 +4295,15 @@ namespace DiceBot
             }
             else
             { 
+                if (sender!=null && programmerToolStripMenuItem.Checked)
+                {
+                    LuaRuntime.SetLua(Lua);
+                    //GetLuaVars();
+                    //SetLuaVars();
+                    LuaRuntime.Run(richTextBox3.Text);
+                    GetLuaVars();
+
+                }
                 bool go = true;
                 if (SimWindow.nudSimNumBets.Value >= 1000000)
                 {
@@ -4837,7 +4967,7 @@ namespace DiceBot
         private void btnLogIn_Click(object sender, EventArgs e)
         {
 
-
+            register = false;
 
             if ((sender as Button).Text == "Log In")
             {
@@ -4845,7 +4975,7 @@ namespace DiceBot
                 switch (CurrentSite.GetType().Name)
                 {
                     case "JD": CurrentSite = new JD(this); break;
-                    case "PRC": CurrentSite = new PRC(this); break;
+                    case "PRC": CurrentSite = new BetKing(this); break;
                     case "BB": CurrentSite = new BB(this); break;
                     case "WD": CurrentSite = new WD(this); break;
                     case "bitdice": CurrentSite = new bitdice(this); break;
@@ -4871,16 +5001,23 @@ namespace DiceBot
                     case "Bit-Exo": CurrentSite = new BitExo(this); break;
                     case "DiceSeuntjie": CurrentSite = new DiceSeuntjie(this); break;
                     case "DuckDice": CurrentSite = new DuckDice(this); break;
-
+                    //case "EtcBets": CurrentSite = new etcbets(this); break;
+                    case "coinpro": CurrentSite = new coinpro(this);break;
+                    //case "OKBets": CurrentSite = new OKBets(this); break;
+                    case "FreeBitcoin": CurrentSite = new Freebitcoin(this); break;
+                    case "Stake": CurrentSite = new Stake(this);break;
+                    case "NitroDice": CurrentSite = new NitroDice(this);break;
                 }
                 if (UseProxy)
                     CurrentSite.SetProxy(proxHost, proxport, proxUser, proxPass);
                 CurrentSite.Currency = curcur;
                 CurrentSite.FinishedLogin -= CurrentSite_FinishedLogin;
                 CurrentSite.FinishedLogin +=CurrentSite_FinishedLogin;
-                
-                CurrentSite.Login(txtApiUsername.Text, txtApiPassword.Text, txtApi2fa.Text);
-                
+                if (txtExtraBox.Text != "")
+                    CurrentSite.Login(txtApiUsername.Text, txtApiPassword.Text, txtApi2fa.Text + "&"+ txtExtraBox.Text);
+                else
+                    CurrentSite.Login(txtApiUsername.Text, txtApiPassword.Text, txtApi2fa.Text);
+
             }
             else
             {
@@ -4892,7 +5029,7 @@ namespace DiceBot
                     switch (CurrentSite.GetType().Name)
                     {
                         case "JD": CurrentSite = new JD(this); break;
-                        case "PRC": CurrentSite = new PRC(this); break;
+                        case "PRC": CurrentSite = new BetKing(this); break;
                         case "BB": CurrentSite = new BB(this); break;
                         case "WD": CurrentSite = new WD(this); break;
                         case "bitdice": CurrentSite = new bitdice(this); break;
@@ -4917,6 +5054,12 @@ namespace DiceBot
                         case "Bit-Exo": CurrentSite = new BitExo(this); break;
                         case "DiceSeuntjie": CurrentSite = new DiceSeuntjie(this); break;
                         case "DuckDice": CurrentSite = new DuckDice(this); break;
+                        //case "EtcBets": CurrentSite = new etcbets(this); break;
+                        case "coinpro": CurrentSite = new coinpro(this); break;
+                        //case "OKBets": CurrentSite = new OKBets(this); break;
+                        case "FreeBitcoin": CurrentSite = new Freebitcoin(this); break;
+                        case "Stake": CurrentSite = new Stake(this); break;
+                        case "NitroDice": CurrentSite = new NitroDice(this); break;
                     }
                     if (UseProxy)
                         CurrentSite.SetProxy(proxHost, proxport, proxUser, proxPass);
@@ -4925,6 +5068,7 @@ namespace DiceBot
                 }
             }
             txtApi2fa.Text = "";
+            txtExtraBox.Text = "";
         }
 
 
@@ -4932,7 +5076,7 @@ namespace DiceBot
 
         private void btnRegister_Click(object sender, EventArgs e)
         {
-                
+            register = true;
             if (CurrentSite.register)
             {
                 ConfirmPassword Conf = new ConfirmPassword();
@@ -4959,7 +5103,7 @@ namespace DiceBot
             }
             else
             {
-                if (MessageBox.Show(string.Format("It looks like {0} does not allow registration through the API. Would you like to open {0} in your browser to register an account?", CurrentSite.Name)) == DialogResult.OK)
+                if (MessageBox.Show(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"It looks like {0} does not allow registration through the API. Would you like to open {0} in your browser to register an account?", CurrentSite.Name)) == DialogResult.OK)
                 {
                     Process.Start(CurrentSite.SiteURL);
                 }
@@ -4976,6 +5120,7 @@ namespace DiceBot
             }
         }
 
+        
         /// <summary>
         /// place single bet, HIGH
         /// </summary>
@@ -4985,7 +5130,8 @@ namespace DiceBot
         {
             CurrentSite.amount = ((decimal)nudApiBet.Value);
             CurrentSite.chance = (decimal)(nudApiChance.Value);
-            CurrentSite.PlaceBet(true, (decimal)nudApiBet.Value, (decimal)(nudApiChance.Value));
+            LastBetPlaced = Guid.NewGuid().ToString();
+            CurrentSite.PlaceBet(true, (decimal)nudApiBet.Value, (decimal)(nudApiChance.Value), LastBetPlaced);
         }
 
         /// <summary>
@@ -4997,7 +5143,8 @@ namespace DiceBot
         {
             CurrentSite.amount =((decimal)nudApiBet.Value);
             CurrentSite.chance = (decimal)(nudApiChance.Value);
-            CurrentSite.PlaceBet(false, (decimal)nudApiBet.Value,(decimal)(nudApiChance.Value));
+            LastBetPlaced = Guid.NewGuid().ToString();
+            CurrentSite.PlaceBet(false, (decimal)nudApiBet.Value,(decimal)(nudApiChance.Value),LastBetPlaced);
         }
 
         private void nudApiBet_ValueChanged(object sender, EventArgs e)
@@ -5235,10 +5382,10 @@ namespace DiceBot
             Chartprofit = 0;
             chrtEmbeddedLiveChart.Series[0].Points.Clear();
             chartbets = 0;
-            //chrtEmbeddedLiveChart.ChartAreas[0].AxisY.Minimum = 0;
-            //chrtEmbeddedLiveChart.ChartAreas[0].AxisY.Maximum = 0;
+            chrtEmbeddedLiveChart.ChartAreas[0].AxisY.Minimum = double.NaN;
+            chrtEmbeddedLiveChart.ChartAreas[0].AxisY.Maximum = double.NaN;
             //chrtEmbeddedLiveChart.Series[0].Points.AddXY(0, 0);
-            
+
         }
 
         private void btnHideLive_Click(object sender, EventArgs e)
@@ -5443,7 +5590,7 @@ namespace DiceBot
                 switch ((sender as ToolStripMenuItem).Name)
                 {
                     case "justDiceToolStripMenuItem": CurrentSite = new JD(this); siteToolStripMenuItem.Text = "Site " + "(JD)"; break;
-                    case "pocketRocketsCasinoToolStripMenuItem": CurrentSite = new PRC(this); siteToolStripMenuItem.Text = "Site " + "(BK)"; break;                    
+                    case "pocketRocketsCasinoToolStripMenuItem": CurrentSite = new BetKing(this); siteToolStripMenuItem.Text = "Site " + "(BK)"; break;                    
                     case "diceToolStripMenuItem": CurrentSite = new dice999(this,false); siteToolStripMenuItem.Text = "Site " + "(999D)"; break;
                     case "dogeToolStripMenuItem": CurrentSite = new dice999(this, true); siteToolStripMenuItem.Text = "Site " + "(999D)"; break;
                     case "primeDiceToolStripMenuItem": CurrentSite = new PD(this); siteToolStripMenuItem.Text = "Site " + "(PD)"; break;
@@ -5472,10 +5619,19 @@ namespace DiceBot
                     case "provabllyIOToolStripMenuItem": CurrentSite = new provablyio(this); siteToolStripMenuItem.Text = "Site (PIO)"; break;
                     case "diceSeuntjieComToolStripMenuItem": CurrentSite = new DiceSeuntjie(this); siteToolStripMenuItem.Text = "Site (DSC)"; break;
                     case "duckDiceToolStripMenuItem": CurrentSite = new DuckDice(this); siteToolStripMenuItem.Text = "(Quack)"; break;
+                    //case "etcBetsToolStripMenuItem": CurrentSite = new etcbets(this); siteToolStripMenuItem.Text = "(EtcB)"; break;
+                    case "coinProfitToolStripMenuItem": CurrentSite = new coinpro(this); siteToolStripMenuItem.Text = "(CPro)"; break;
+                    //case "oKBetsToolStripMenuItem" : CurrentSite = new OKBets(this); siteToolStripMenuItem.Text = "(OKB)"; break;
+                    case "freebitcoinToolStripMenuItem": CurrentSite = new Freebitcoin(this); siteToolStripMenuItem.Text = "(FBtc)"; break;
+                    case "stakeToolStripMenuItem": CurrentSite = new Stake(this); siteToolStripMenuItem.Text = "(Stake)"; break;
+                    case "nitrodiceToolStripMenuItem": CurrentSite = new NitroDice(this); siteToolStripMenuItem.Text = "(ND)"; break;
                 }
                 lblUsername.Text = CurrentSite.UsernameText;
                 lblPass.Text = CurrentSite.PasswordText;
                 lblMFAText.Text = CurrentSite.MFAText;
+                lblXtraControl.Text = CurrentSite.XtraText;
+                lblXtraControl.Visible = CurrentSite.ShowXtra;
+                txtExtraBox.Visible = CurrentSite.ShowXtra;
                 /*if (CurrentSite is WD|| CurrentSite is PD || CurrentSite is dadice || CurrentSite is CoinMillions || CurrentSite is Coinichiwa || CurrentSite is cryptogames)
                 {
                     lblPass.Text = "API key:";
@@ -5570,7 +5726,7 @@ namespace DiceBot
         {
             if ((sender as ToolStripMenuItem).Checked)
             {
-                CurrentSite.Currency = (sender as ToolStripMenuItem).Text.ToLower();
+                CurrentSite.Currency = (sender as ToolStripMenuItem).Text;//.ToLower();
             }
         }
 
@@ -5579,11 +5735,60 @@ namespace DiceBot
 
         }
 
-
+        public class SiteDetails
+        {
+            public string name { get; set; }
+            public decimal edge { get; set; }
+            public decimal maxroll { get; set; }
+            public bool cantip { get; set; }
+            public bool tipusingname { get; set; }
+            public bool canwithdraw { get; set; }
+            public bool canresetseed { get; set; }
+            public bool caninvest { get; set; }
+            public string siteurl { get; set; }
+            public long Wins { get; set; }
+            public long Losses { get; set; }
+            public decimal Profit { get; set; }
+            public decimal Wagered { get; set; }
+            public decimal Balance { get; set; }
+            public long Bets { get; set; }
+            public void SetDetails(DiceSite Site)
+            {
+                name = Site.Name;
+                edge = Site.edge;
+                maxroll = Site.maxRoll;
+                cantip = Site.Tip;
+                tipusingname = Site.TipUsingName;
+                canwithdraw = Site.AutoWithdraw;
+                canresetseed = Site.ChangeSeed;
+                caninvest = Site.AutoInvest;
+                siteurl = Site.SiteURL;
+            }
+            public void UpdateUserDetails(DiceSite Site)
+            {
+                Wins = Site.GetWins();
+                Losses = Site.GetLosses();
+                Bets = Site.GetBets();
+                Profit = Site.GetProfit();
+                Wagered = Site.GetWagered();
+                Balance = Site.balance;
+            }
+        }
+        SiteDetails CurrentSiteDetails = null;
         void SetLuaVars()
         {
             try
             {
+                if (CurrentSiteDetails == null)
+                {
+                    CurrentSiteDetails = new SiteDetails();
+                    CurrentSiteDetails.SetDetails(CurrentSite);
+                }
+                else if (CurrentSiteDetails.name!=CurrentSite.Name)
+                {
+                    CurrentSiteDetails.SetDetails(CurrentSite);
+                }
+                CurrentSiteDetails.UpdateUserDetails(CurrentSite);
                 //Lua.clear();
                 Lua["balance"] = PreviousBalance ;                
                 Lua["profit"] = this.profit;
@@ -5599,6 +5804,10 @@ namespace DiceBot
                 Lua["currency"] = CurrentSite.Currency;                
                 Lua["enablersc"] = EnableReset;
                 Lua["enablezz"] = EnableProgZigZag;
+                Lua["wagered"] = wagered;
+                Lua["site"] = CurrentSiteDetails;
+
+                
             }
             catch (Exception e)
             {
@@ -5894,18 +6103,18 @@ namespace DiceBot
                             pocketRocketsCasinoToolStripMenuItem.Checked ? 2 : 
                             diceToolStripMenuItem.Checked ? 3 : 
                             safediceToolStripMenuItem.Checked ? 4 : 
-                            daDiceToolStripMenuItem.Checked ? 5 : 
+                            //daDiceToolStripMenuItem.Checked ? 5 : 
                             rollinIOToolStripMenuItem.Checked ? 6 : 
                             bitDiceToolStripMenuItem.Checked ? 7: 
                             betterbetsToolStripMenuItem.Checked?8:
                             moneyPotToolStripMenuItem.Checked?9:
                             coinMillionsToolStripMenuItem.Checked ? 10 :
-                            magicalDiceToolStripMenuItem.Checked ? 11 :
+                            //magicalDiceToolStripMenuItem.Checked ? 11 :
                             fortuneJackToolStripMenuItem.Checked? 12:
                             cryptoGamesToolStripMenuItem.Checked?13:
                             bitslerToolStripMenuItem.Checked?14:
-                            dogeToolStripMenuItem.Checked?15:
-                            wealthyDiceToolStripMenuItem.Checked?16:
+                            //dogeToolStripMenuItem.Checked?15:
+                            //wealthyDiceToolStripMenuItem.Checked?16:
                             satoshiDiceToolStripMenuItem.Checked?17:
                             bitvestToolStripMenuItem.Checked?18:
                             kingDiceToolStripMenuItem.Checked?19:
@@ -5915,6 +6124,12 @@ namespace DiceBot
                             yoloDiceToolStripMenuItem.Checked?23:
                             diceSeuntjieComToolStripMenuItem.Checked?24:
                             duckDiceToolStripMenuItem.Checked?25:
+                            //etcBetsToolStripMenuItem.Checked?26:
+                            coinProfitToolStripMenuItem.Checked?27:
+                            //oKBetsToolStripMenuItem.Checked?28:
+                            freebitcoinToolStripMenuItem.Checked?29:
+                            stakeToolStripMenuItem.Checked?30:
+                            nitrodiceToolStripMenuItem.Checked?31:
                             1);
                 }
                 else if (c is TextBox)
@@ -6014,18 +6229,18 @@ namespace DiceBot
                         pocketRocketsCasinoToolStripMenuItem.Checked = value == 2;
                         diceToolStripMenuItem.Checked = value == 3;
                         safediceToolStripMenuItem.Checked = value == 4;
-                        daDiceToolStripMenuItem.Checked = value == 5;
+                        //daDiceToolStripMenuItem.Checked = value == 5;
                         rollinIOToolStripMenuItem.Checked = value == 6;
                         bitDiceToolStripMenuItem.Checked = value == 7;
                         betterbetsToolStripMenuItem.Checked = value == 8;
                         moneyPotToolStripMenuItem.Checked = value == 9;
                         coinMillionsToolStripMenuItem.Checked = value == 10;
-                        magicalDiceToolStripMenuItem.Checked = value == 11;
+                        //magicalDiceToolStripMenuItem.Checked = value == 11;
                         fortuneJackToolStripMenuItem.Checked = value == 12;
                         cryptoGamesToolStripMenuItem.Checked = value == 13;
                         bitslerToolStripMenuItem.Checked = value == 14;
-                        dogeToolStripMenuItem.Checked = value == 15;
-                        wealthyDiceToolStripMenuItem.Checked = value == 16;
+                        //dogeToolStripMenuItem.Checked = value == 15;
+                        //wealthyDiceToolStripMenuItem.Checked = value == 16;
                         satoshiDiceToolStripMenuItem.Checked = value == 17;
                         bitvestToolStripMenuItem.Checked = value == 18;
                         kingDiceToolStripMenuItem.Checked = value == 19;
@@ -6035,7 +6250,14 @@ namespace DiceBot
                         yoloDiceToolStripMenuItem.Checked = value == 23;
                         diceSeuntjieComToolStripMenuItem.Checked = value == 24;
                         duckDiceToolStripMenuItem.Checked = value == 25;
-                        if (value > 25)
+                        //etcBetsToolStripMenuItem.Checked = value == 26;
+                        coinProfitToolStripMenuItem.Checked = value == 27 ;
+                        //oKBetsToolStripMenuItem.Checked = value == 28;
+                            freebitcoinToolStripMenuItem.Checked = value == 29;
+                        stakeToolStripMenuItem.Checked = value == 30;
+                        nitrodiceToolStripMenuItem.Checked = value == 31;
+                            
+                        if (value > 31)
                         {
                             primeDiceToolStripMenuItem.Checked = true; ;
                         }
@@ -6153,18 +6375,18 @@ namespace DiceBot
                         pocketRocketsCasinoToolStripMenuItem.Checked = value == "2";
                         diceToolStripMenuItem.Checked = value == "3";
                         safediceToolStripMenuItem.Checked = value == "4";
-                        daDiceToolStripMenuItem.Checked = value == "5";
+                        //daDiceToolStripMenuItem.Checked = value == "5";
                         rollinIOToolStripMenuItem.Checked = value == "6";
                         bitDiceToolStripMenuItem.Checked = value == "7";
                         betterbetsToolStripMenuItem.Checked = value == "8";
                         moneyPotToolStripMenuItem.Checked = value == "9";
                         coinMillionsToolStripMenuItem.Checked = value == "10";
-                        magicalDiceToolStripMenuItem.Checked = value == "11";
+                        //magicalDiceToolStripMenuItem.Checked = value == "11";
                         fortuneJackToolStripMenuItem.Checked = value == "12";
                         cryptoGamesToolStripMenuItem.Checked = value == "13";
                         bitslerToolStripMenuItem.Checked = value == "14";
-                        dogeToolStripMenuItem.Checked = value == "15";
-                        wealthyDiceToolStripMenuItem.Checked = value == "16";
+                        //dogeToolStripMenuItem.Checked = value == "15";
+                        //wealthyDiceToolStripMenuItem.Checked = value == "16";
                         satoshiDiceToolStripMenuItem.Checked = value == "17";
                         bitvestToolStripMenuItem.Checked = value == "18";
                         kingDiceToolStripMenuItem.Checked = value == "19";
@@ -6174,6 +6396,12 @@ namespace DiceBot
                         yoloDiceToolStripMenuItem.Checked = value == "23";
                         diceSeuntjieComToolStripMenuItem.Checked = value == "24";
                         duckDiceToolStripMenuItem.Checked = value == "25";
+                        //etcBetsToolStripMenuItem.Checked = value == "26";
+                        coinProfitToolStripMenuItem.Checked = value == "27";
+                        //oKBetsToolStripMenuItem.Checked = value == "28";
+                        freebitcoinToolStripMenuItem.Checked = value == "29";
+                        stakeToolStripMenuItem.Checked = value == "30";
+                        nitrodiceToolStripMenuItem.Checked = value == "31";
                     }
                     else if (Key == "SettingsMode")
                     {

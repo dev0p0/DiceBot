@@ -10,7 +10,7 @@ using System.Net;
 
 namespace DiceBot
 {
-    class Cloudflare
+    public class Cloudflare
     {
         public static bool doCFThing(string Response, HttpClient Client, HttpClientHandler ClientHandlr, int cflevel, string URI)
         {
@@ -22,7 +22,7 @@ namespace DiceBot
             string jschl_vc = s1.Substring(s1.IndexOf("jschl_vc"));
             jschl_vc = jschl_vc.Substring(jschl_vc.IndexOf("value=\"") + "value=\"".Length);
             jschl_vc = jschl_vc.Substring(0, jschl_vc.IndexOf("\""));
-            string pass = s1.Substring(s1.IndexOf("pass"));
+            string pass = s1.Substring(s1.IndexOf("\"pass\""));
             pass = pass.Substring(pass.IndexOf("value=\"") + "value=\"".Length);
             pass = pass.Substring(0, pass.IndexOf("\""));
 
@@ -36,6 +36,8 @@ namespace DiceBot
             Script1 = Script1.Substring(0, Script1.IndexOf("f.submit()"));
             Script1 = Script1.Replace("t.length", URI.Length + "");
             Script1 = Script1.Replace("a.value", "var answer");
+            if (Script1.Contains("f.action += location.hash;")|| Script1.Contains("f.action+=location.hash;"))
+                Script1 = Script1.Replace("f.action += location.hash;", "").Replace("f.action+=location.hash;", "");
             JSC.Run(Script1);
             string answer = JSC.GetParameter("answer").ToString();
 

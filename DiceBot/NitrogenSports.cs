@@ -183,7 +183,7 @@ Sec-WebSocket-Version:13*/
         {
             try
             {
-                Parent.DumpLog(e.Message, -1);
+                //Parent.DumpLog(e.Message, -1);
                 if (e.Message.StartsWith("[4"))
                 {
                     //error!
@@ -247,7 +247,7 @@ Sec-WebSocket-Version:13*/
                 high = tmpbbet.betCondition == "H",
                 Chance = tmpbbet.betCondition == "H" ? maxRoll - decimal.Parse(tmpbbet.betTarget, System.Globalization.NumberFormatInfo.InvariantInfo) : decimal.Parse(tmpbbet.betTarget, System.Globalization.NumberFormatInfo.InvariantInfo),
                 nonce = tmpbbet.nonce,
-                
+                Guid=this.Guid,
                 Roll = decimal.Parse(tmpbbet.roll, System.Globalization.NumberFormatInfo.InvariantInfo),
                 serverhash = tmpbbet.dice.serverSeedHash
             };
@@ -285,23 +285,24 @@ Sec-WebSocket-Version:13*/
         {
             SendTip("1435541", Amount);
         }
-
+        string Guid = "";
         void PlaceBetThread(object BetObj)
         {
             PlaceBetObj obj = BetObj as PlaceBetObj;
+            this.Guid = obj.Guid;
             bool High = obj.High;
             decimal chance = obj.Chance;
             decimal amount = obj.Amount;
             decimal tmpchance = High ? maxRoll - chance : chance;
             string t = CreateRandomString();
             this.Requests.Add(t, 0);
-            string s = string.Format("[2,\"0.{0}\",\"bet\",{{\"betAmount\":{1:0.00000000},\"betCondition\":\"{2}\",\"betTarget\":{3:0.00}}}]", t, amount, High ? "H" : "L", tmpchance);
+            string s = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"[2,\"0.{0}\",\"bet\",{{\"betAmount\":{1:0.00000000},\"betCondition\":\"{2}\",\"betTarget\":{3:0.00}}}]", t, amount, High ? "H" : "L", tmpchance);
             NSSocket.Send(s);
         }
 
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
-            new Thread(new ParameterizedThreadStart(PlaceBetThread)).Start(new PlaceBetObj(High, amount, chance));
+            new Thread(new ParameterizedThreadStart(PlaceBetThread)).Start(new PlaceBetObj(High, amount, chance, Guid));
         }
 
         Random R = new Random();
@@ -318,7 +319,7 @@ Sec-WebSocket-Version:13*/
             string t = CreateRandomString();
             Requests.Add(t, 2);
 
-            NSSocket.Send(string.Format("[2,\"0.{0}\",\"seed\",{{\"clientSeed\":\"{1}\"}}]", t, s));
+            NSSocket.Send(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"[2,\"0.{0}\",\"seed\",{{\"clientSeed\":\"{1}\"}}]", t, s));
         }
 
         public override void SetClientSeed(string Seed)

@@ -24,9 +24,10 @@ namespace DiceBot
         HttpClientHandler ClientHandlr;
         WebSocket WSClient;// = new WebSocket("");
         RandomNumberGenerator R = new System.Security.Cryptography.RNGCryptoServiceProvider();
-       
+        public static string[] sCurrencies = new string[] { "BTC" };//,"LTC","DASH" };
         public DiceSeuntjie(cDiceBot Parent)
         {
+            Currency = "BTC";
             maxRoll = 99.9999m;
             AutoInvest = false;
             AutoWithdraw = false;
@@ -44,15 +45,33 @@ namespace DiceBot
             APPId = 2668;
             url = "dice.seuntjie.com";
             _PasswordText = "Api Key";
+            Currencies = sCurrencies;
+            
         }
+        protected override void CurrencyChanged()
+        {
+            if (ispd && WSClient != null)
+            {
+                string Bet = string.Format(
+                    System.Globalization.NumberFormatInfo.InvariantInfo,
+                    "42{0}[\"access_token_data\",{{\"app_id\":{1},\"access_token\":\"{2}\",\"currency\":\"{3}\"}}]",
+                    id++,
+                    APPId,
+                    accesstoken,
+                    Currency
+                    );
+                WSClient.Send(Bet);
+            }
+        }
+
         protected string url { get; set; }
         long id = 0;
         string OldHash = "";
         string ClientSeed = "";
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        string Guid = "";
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
-            //42207["dice_bet",{"wager":100,"client_seed":1575385442,"hash":"7cb5599644e30201d7ed12a3dce401048bbbd8718fcb0cffbba38b8da8278808","cond":">","target":50.4999,"payout":200}]
-            //429["dice_bet",{"wager":100,"client_seed":3823035792,"hash":"60a4fb16aa9aa7020d6adc397730952d102adde98428007701836dcb5e4c48eb","cond":">","target":50.4499,"payout":200}]
+            this.Guid = Guid;
             this.High = High;
             ClientSeed = "";
             byte[] bytes = new byte[4];
@@ -60,8 +79,9 @@ namespace DiceBot
             long client = (long)BitConverter.ToUInt32(bytes, 0);
             ClientSeed = client.ToString();
             long Roundedamount = (long)(Math.Round((amount), 8) * 100000000);
-            string Bet = string.Format("42{0}[\"dice_bet\",{{\"wager\":{1:0},\"client_seed\":{2},\"hash\":\"{3}\",\"cond\":\"{4}\",\"target\":{5:0.0000},\"payout\":{6:0.0000}}}]",
-                id++, Roundedamount, ClientSeed, OldHash, High ? ">" : "<", High ? 100m - chance : chance, (((100m - edge) / chance) * Roundedamount));
+            
+            string Bet = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"42{0}[\"dice_bet\",{{\"wager\":{1:0},\"client_seed\":{2},\"hash\":\"{3}\",\"cond\":\"{4}\",\"target\":{5:0.0000},\"payout\":{6:0.0000}, \"currency\":\"{7}\"}}]",
+                id++, Roundedamount, ClientSeed, OldHash, High ? ">" : "<", High ? 100m - chance : chance, (((100m - edge) / chance) * Roundedamount), Currency);
             WSClient.Send(Bet);
         }
 
@@ -91,18 +111,22 @@ namespace DiceBot
             Client.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("gzip"));
             Client.DefaultRequestHeaders.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("deflate"));
             Client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36");
-
+            Parent.DumpLog("BE login 1",8);
+                
             try
             {
                 accesstoken = Password;
                 string s1 = "";
                 HttpResponseMessage resp = Client.GetAsync("").Result;
+                Parent.DumpLog("BE login 2", 8);
                 if (resp.IsSuccessStatusCode)
                 {
                     s1 = resp.Content.ReadAsStringAsync().Result;
+                    Parent.DumpLog("BE login 2.1", 7);
                 }
                 else
                 {
+                    Parent.DumpLog("BE login 2.2", 7);
                     if (resp.StatusCode == HttpStatusCode.ServiceUnavailable)
                     {
                         s1 = resp.Content.ReadAsStringAsync().Result;
@@ -119,27 +143,27 @@ namespace DiceBot
                         }
 
                     }
+                    Parent.DumpLog("BE login 2.3", 7);
                 }
                 string response = Client.GetStringAsync("socket.io/?EIO=3&transport=polling&t="+CurrentDate()).Result;
-                
+                Parent.DumpLog("BE login 3", 7);
                 string c = 
                 response.Substring(response.IndexOf("sid\":\"") + "sid\":\"".Length);
                 c = c.Substring(0, c.IndexOf("\""));
-                foreach (Cookie c3 in cookies.GetCookies(new Uri("http://seuntjie.com")))
+                Parent.DumpLog("BE login 4", 7);
+                foreach (Cookie c3 in cookies.GetCookies(new Uri("http://"+ url)))
                 {
                     if (c3.Name == "io")
                         c = c3.Value;
                     /*if (c3.Name == "__cfduid")
                         c2 = c3;*/
                 }
-                response = Client.GetStringAsync("socket.io/?EIO=3&transport=polling&t=" + CurrentDate() + "&sid=" + c).Result;
-                //response = Client.GetStringAsync("socket.io/?EIO=3&transport=polling&t=" + CurrentDate() + "&sid=" + c).Result;
-                string chatinit = "420[\"chat_init\",{\"app_id\":2668,\"access_token\":\"" + accesstoken + "\",\"subscriptions\":[\"CHAT\",\"DEPOSITS\",\"BETS\"]}]";
+                Parent.DumpLog("BE login 5", 7);
+                string chatinit = "420[\"chat_init\",{\"app_id\":"+APPId+",\"access_token\":\"" + accesstoken + "\",\"subscriptions\":[\"CHAT\",\"DEPOSITS\",\"BETS\"]}]";
                 chatinit = chatinit.Length + ":" + chatinit;
                 var content = new StringContent(chatinit, Encoding.UTF8, "application/octet-stream");
                 response = Client.PostAsync("socket.io/?EIO=3&transport=polling&t=" + CurrentDate() + "&sid=" + c, content).Result.Content.ReadAsStringAsync().Result;
-                //response = Client.GetStringAsync("socket.io/?EIO=3&transport=polling&t=" + CurrentDate() + "&sid=" + c).Result;
-                
+                Parent.DumpLog("BE login 5", 7);
                 List<KeyValuePair<string, string>> Cookies = new List<KeyValuePair<string, string>>();
                 List<KeyValuePair<string, string>> Headers = new List<KeyValuePair<string, string>>();
                 Headers.Add(new KeyValuePair<string, string>("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36"));
@@ -148,19 +172,19 @@ namespace DiceBot
                     Cookies.Add(new KeyValuePair<string,string>(x.Name, x.Value));
                 }
                 Cookies.Add(new KeyValuePair<string,string>("io",c));
-                WSClient = new WebSocket("wss://"+url+"/socket.io/?EIO=3&transport=websocket&sid=" + c, null, Cookies, Headers, "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36", "https://bit-exo.com", WebSocketVersion.Rfc6455, null, System.Security.Authentication.SslProtocols.Tls | System.Security.Authentication.SslProtocols.Tls11 | System.Security.Authentication.SslProtocols.Tls12);
+                Parent.DumpLog("BE login 6", 7);
+                WSClient = new WebSocket("wss://"+url+"/socket.io/?EIO=3&transport=websocket&sid=" + c, null, Cookies, Headers, "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/56.0.2924.87 Safari/537.36", "https://"+url, WebSocketVersion.Rfc6455, null, System.Security.Authentication.SslProtocols.Tls | System.Security.Authentication.SslProtocols.Tls11 | System.Security.Authentication.SslProtocols.Tls12);
                 WSClient.Closed += WSClient_Closed;
                 WSClient.DataReceived += WSClient_DataReceived;
                 WSClient.Error += WSClient_Error;
                 WSClient.MessageReceived += WSClient_MessageReceived;
                 WSClient.Opened += WSClient_Opened;
-                /*WSClient.AutoSendPingInterval = 30;
-                WSClient.EnableAutoSendPing = true;*/
                 WSClient.Open();
                 while (WSClient.State == WebSocketState.Connecting)
                     Thread.Sleep(100);
                 if (WSClient.State == WebSocketState.Open)
                 {
+                    Parent.DumpLog("BE login 7.1", 7);
                     ispd = true;
                     
                     lastupdate = DateTime.Now;
@@ -169,17 +193,20 @@ namespace DiceBot
                 }
                 else
                 {
+                    Parent.DumpLog("BE login 7.2", 7);
                     finishedlogin(false);
                     return;
                 }
             }
             catch (AggregateException ER)
             {
+                Parent.DumpLog(ER.ToString(),-1);
                 finishedlogin(false);
                 return;
             }
             catch (Exception ERR)
             {
+                Parent.DumpLog(ERR.ToString(), -1);
                 finishedlogin(false);
                 return;
             }
@@ -194,8 +221,7 @@ namespace DiceBot
 
         public override bool InternalSendTip(string User, decimal amount)
         {
-            //"4210["send_tip",{"uname":"seuntjiebot","amount":100000,"private":false,"type":"BTC"}]";
-            WSClient.Send(string.Format("42{0}[\"send_tip\",{{\"uname\":\"{1}\",\"amount\":{2:0.00000000},\"private\":false,\"type\":\"BTC\"}}]", id++, User, amount*100000000m));
+            WSClient.Send(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"42{0}[\"send_tip\",{{\"uname\":\"{1}\",\"amount\":{2:0.00000000},\"private\":false,\"type\":\"{3}\"}}]", id++, User, amount*100000000m, Currency));
             return true;
         }
 
@@ -206,8 +232,15 @@ namespace DiceBot
                 if ((DateTime.Now-lastupdate).TotalSeconds>=30)
                 {
                     lastupdate = DateTime.Now;
-                    string getbalance = string.Format("42{0}[\"access_token_data\",{{\"app_id\":{1},\"access_token\":\"{2}\"}}]", id++, APPId, accesstoken);
-                    WSClient.Send(getbalance);
+                    string Bet = string.Format(
+                System.Globalization.NumberFormatInfo.InvariantInfo,
+                "42{0}[\"access_token_data\",{{\"app_id\":{1},\"access_token\":\"{2}\",\"currency\":\"{3}\"}}]",
+                id++,
+                APPId,
+                accesstoken,
+                Currency
+                );
+                    WSClient.Send(Bet);
                     WSClient.Send("2");
                 
                 }
@@ -217,42 +250,67 @@ namespace DiceBot
         void WSClient_Opened(object sender, EventArgs e)
         {
             WSClient.Send("2probe");
+            Parent.DumpLog("opened", -1);
         }
         public int APPId { get; set; }
         void WSClient_MessageReceived(object sender, MessageReceivedEventArgs e)
         {
-            //Parent.DumpLog(e.Message, -1);
+            Parent.DumpLog(e.Message, 10);
             if (e.Message=="3probe")
             {
                 WSClient.Send("5");
-                //4214["access_token_data",{"app_id":2668,"access_token":"49af40dd-5f96-4c67-ab16-6ff05f0d364b"}]
-                //20:421["get_hash",null]
                 WSClient.Send("42"+id++ +"[\"get_hash\",null]");
-                string getbalance = string.Format("42{0}[\"access_token_data\",{{\"app_id\":{1},\"access_token\":\"{2}\"}}]", id++, APPId, accesstoken );
-                WSClient.Send(getbalance);
-                //148:420["chat_init",{"app_id":926,"access_token":"5ed59498-d425-4c63-835e-348f56753d5a","subscriptions":["CHAT","DEPOSITS","BETS"],"room":"ENGLISH_RM"}]
-                               
+                string Bet = string.Format(
+                System.Globalization.NumberFormatInfo.InvariantInfo,
+                "42{0}[\"access_token_data\",{{\"app_id\":{1},\"access_token\":\"{2}\",\"currency\":\"{3}\"}}]",
+                id++,
+                APPId,
+                accesstoken,
+                Currency
+                );
+                WSClient.Send(Bet);
+
             }
             else
             {
-                if (e.Message.Contains("[null,{\"hash\":"))
+                if (e.Message.Contains("[null,{\"bet_hash\":"))
                 {
-                    //431[null,{"hash":"60a4fb16aa9aa7020d6adc397730952d102adde98428007701836dcb5e4c48eb","bet_hash":"60a4fb16aa9aa7020d6adc397730952d102adde98428007701836dcb5e4c48eb"}] 
-                    string msg = e.Message.Substring(e.Message.IndexOf("{"));
+                     string msg = e.Message.Substring(e.Message.IndexOf("{"));
                     msg = msg.Substring(0, msg.Length - 1);
                     SDiceHash tmphash = json.JsonDeserialize<SDiceHash>(msg);
                     this.OldHash = tmphash.bet_hash;
                 }
                 if (e.Message.Contains("[null,{\"token\":"))
                 {
-                    // get balance and stats
                     string msg = e.Message.Substring(e.Message.IndexOf("{"));
                     msg = msg.Substring(0, msg.Length - 1);
                     SDIceAccToken tmphash = json.JsonDeserialize<SDIceAccToken>(msg);
-                    this.balance = tmphash.auth.user.balance / 100000000m;
-                    this.profit = tmphash.auth.user.betted_profit / 100000000m;
-                    this.wagered = tmphash.auth.user.betted_wagered / 100000000m;
-                    this.bets = (int)tmphash.auth.user.betted_count;
+                    this.balance = (Currency.ToLower()=="btc"? tmphash.user.balances.btc:
+                        Currency.ToLower() == "ltc" ? tmphash.user.balances.ltc :
+                        Currency.ToLower() == "dash" ? tmphash.user.balances.dash :
+                        0
+                        ) / 100000000m;
+                    this.profit = tmphash.user.betted_profit / 100000000m;
+                    this.wagered = tmphash.user.betted_wager / 100000000m;
+                    this.bets = (int)tmphash.user.betted_count;
+                    Parent.updateBalance(balance);
+                    Parent.updateProfit(profit);
+                    Parent.updateWagered(wagered);
+                    Parent.updateBets(bets);
+                }
+                if (e.Message.Contains("[null,{\"auth_id\":"))
+                {
+                    string msg = e.Message.Substring(e.Message.IndexOf("{"));
+                    msg = msg.Substring(0, msg.Length - 1);
+                    sdiceauth tmphash = json.JsonDeserialize<sdiceauth>(msg);
+                    this.balance = (Currency.ToLower() == "btc" ? tmphash.user.balances.btc :
+                        Currency.ToLower() == "ltc" ? tmphash.user.balances.ltc :
+                        Currency.ToLower() == "dash" ? tmphash.user.balances.dash :
+                        0
+                        ) / 100000000m;
+                    this.profit = tmphash.user.betted_profit / 100000000m;
+                    this.wagered = tmphash.user.betted_wager / 100000000m;
+                    this.bets = (int)tmphash.user.betted_count;
                     Parent.updateBalance(balance);
                     Parent.updateProfit(profit);
                     Parent.updateWagered(wagered);
@@ -264,42 +322,47 @@ namespace DiceBot
                     string msg = e.Message.Substring(e.Message.IndexOf("{"));
                     msg = msg.Substring(0, msg.Length - 1);
                     SDIceBet tmphash = json.JsonDeserialize<SDIceBet>(msg);
-                    Bet newbet = new Bet
+                    if (tmphash.bet_id > 0)
                     {
-                         Amount=amount,
-                          date=DateTime.Now,
-                           Chance=chance,
-                            high=High,
-                             clientseed=ClientSeed,
-                         Id = tmphash.bet_id.ToString(),
-                               nonce=tmphash.secret,
-                                serverseed=tmphash.salt,
-                                 serverhash=OldHash,
-                                  Profit=tmphash.profit/100000000m,
-                                   Roll=decimal.Parse(tmphash.outcome, System.Globalization.NumberFormatInfo.InvariantInfo)
-                    };
-                    OldHash = tmphash.next_hash;
-                    balance += newbet.Profit;
-                    profit += newbet.Profit;
-                    bets++;
-                    wagered += newbet.Amount;
-                    bool win = false;
-                    if ((newbet.Roll > maxRoll- newbet.Chance && High) || (newbet.Roll < newbet.Chance && !High))
-                    {
-                        win = true;
+                        Bet newbet = new Bet
+                        {
+                            Amount = amount,
+                            date = DateTime.Now,
+                            Chance = chance,
+                            high = High,
+                            clientseed = ClientSeed,
+                            Id = tmphash.bet_id.ToString(),
+                            nonce = 0,
+                            serverseed = tmphash.secret,//tmphash.salt,
+                            serverhash = OldHash,
+                            Profit = tmphash.profit / 100000000m,
+                            Roll = decimal.Parse(tmphash.outcome, System.Globalization.NumberFormatInfo.InvariantInfo),
+                            Guid=this.Guid
+                        };
+                        OldHash = tmphash.next_hash;
+                        balance += newbet.Profit;
+                        profit += newbet.Profit;
+                        bets++;
+                        wagered += newbet.Amount;
+                        bool win = false;
+                        if ((newbet.Roll > maxRoll - newbet.Chance && High) || (newbet.Roll < newbet.Chance && !High))
+                        {
+                            win = true;
+                        }
+                        if (win)
+                            wins++;
+                        else
+                            losses++;
+                        FinishedBet(newbet);
                     }
-                    if (win)
-                        wins++;
-                    else
-                        losses++;
-                    FinishedBet(newbet);
                 }
             }
         }
 
         void WSClient_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
-            
+            Parent.DumpLog("error", -1);
+            Parent.DumpLog(e.Exception.ToString(), -1);
         }
 
         void WSClient_DataReceived(object sender, DataReceivedEventArgs e)
@@ -309,7 +372,7 @@ namespace DiceBot
 
         void WSClient_Closed(object sender, EventArgs e)
         {
-            
+            Parent.DumpLog("closed", -1);
         }
         public static string CurrentDate()
         {
@@ -358,32 +421,20 @@ namespace DiceBot
             return moneypot.sGetLucky(server, client, nonce);
         }
     }
-    //439[null,{"id":995652266,"bet_id":995652266,"outcome":"31.6029","profit":-100,"secret":1829266922,"salt":"1d6f5decb3098d00e065faa720df7d16","created_at":"2017-03-11T08:13:03.312Z",
-    //"next_hash":"2b170d723dd272a1d1bc933589b4221a4426602245c2b4cf168568573f653a16","raw_outcome":1357335418,"kind":"DICE"}]
     public class SDIceBet
     {
         public long ID { get; set; }
         public long bet_id { get; set; }
         public string outcome { get; set; }
         public decimal profit { get; set; }
-        public long secret { get; set; }
+        public string secret { get; set; }
         public string salt { get; set; }
         public string created_at { get; set; }
         public string next_hash { get; set; }
         public long raw_outcome { get; set; }
         public string kind { get; set; }
     }
-    /*4318[null,{"token":"49af40dd-5f96-4c67-ab16-6ff05f0d364b","expires_in":1086586,"expires_at":"2017-03-23T22:04:27.624798+00:00",
-     * "kind":"confidential_token","auth":
-     * {"id":57783,"app_id":2668,"user":
-     * {"uname":"seuntjie","balance":278685.750269145,"unconfirmed_balance":0,
-     * "unpaid":0,"betted_count":70959,"betted_wager":22375223.7993277,"betted_ev":-201880.321227329,"betted_profit":-321216.249730916,"role":"OWNER",
-     * "wager24hour":200,"profit24hour":0,
-     * "largestwin":{"id":984302700,"amt":205213.73737373733,"game":"DICE"}
-     * ,"largestloss":{"id":984396746,"amt":-409600,"game":"DICE"},
-     * "ref":null,"refprofit":0,"refpaid":0,"open_pm":["NONE"],"level":3}
-     * }}]*/
-    public class SDIceAccToken
+     public class SDIceAccToken
     {
         public SDIceAccToken auth { get; set; }
         public SDiceUser user { get; set; }
@@ -392,16 +443,41 @@ namespace DiceBot
     public class SDiceUser
     {
         public string uname { get; set; }
-        public decimal balance { get; set; }
-        public decimal unconfirmed_Balance { get; set; }
-        public long betted_count { get; set; }
-        public decimal betted_wagered { get; set; }
+        public string role { get; set; }
+        public sdiceBalances balances { get; set; }
+        public sdiceBalances unconfirmed { get; set; }
+        public object balance { get; set; }
+        public decimal wager24hour { get; set; }
+        public decimal profit24hour { get; set; }
+        public object @ref { get; set; }
+        public decimal refprofit { get; set; }
+        public decimal refpaid { get; set; }
+        public decimal refprofitLTC { get; set; }
+        public decimal refprofitDASH { get; set; }
+        public decimal refprofitDOGE { get; set; }
+        public List<string> open_pm { get; set; }
+        public decimal betted_wager { get; set; }
+        public decimal betted_count { get; set; }
         public decimal betted_profit { get; set; }
+        public decimal level { get; set; }
     }
-    //431[null,{"hash":"60a4fb16aa9aa7020d6adc397730952d102adde98428007701836dcb5e4c48eb","bet_hash":"60a4fb16aa9aa7020d6adc397730952d102adde98428007701836dcb5e4c48eb"}] 
     public class SDiceHash
     {
         public string hash { get; set; }
         public string bet_hash { get; set; }
+    }
+    public class sdiceBalances
+    {
+        public decimal btc { get; set; }
+        public decimal ltc { get; set; }
+        public decimal dash { get; set; }
+    }
+    public class sdiceauth
+    {
+        public sdiceauth auth {get; set;}
+        public int id { get; set; }
+        public int auth_id { get; set; }
+        public int app_id { get; set; }
+        public SDiceUser user { get; set; }
     }
 }

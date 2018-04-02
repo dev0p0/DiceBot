@@ -165,7 +165,7 @@ namespace DiceBot
                         string s = Client.PostAsync(("user"), Content).Result.Content.ReadAsStringAsync().Result;
                     
                         bbStats tmpu = json.JsonDeserialize<bbStats>(s);
-                        if (tmpu.error != 1)
+                        if (tmpu.error != 1 )
                         {
                             balance = tmpu.balance; //i assume
                             bets = tmpu.total_bets;
@@ -231,6 +231,7 @@ namespace DiceBot
                 bool High = tmp9.High;
                 decimal amount = tmp9.Amount;
                 decimal chance = tmp9.Chance;
+                string Guid = tmp9.Guid;
                 byte[] bytes = new byte[4];
                 R.GetBytes(bytes);
                 long client = (long)BitConverter.ToUInt32(bytes,0);
@@ -259,12 +260,12 @@ namespace DiceBot
                     {
                         if (retrycount++ < 3)
                         {
-                            placebetthread(new PlaceBetObj(High, amount, chance));
+                            placebetthread(new PlaceBetObj(High, amount, chance,Guid));
                             return;
                         }
                         if (e.InnerException.Message.Contains("ssl"))
                         {
-                            placebetthread(new PlaceBetObj(High, amount, chance));
+                            placebetthread(new PlaceBetObj(High, amount, chance, Guid));
                             return;
                         }
                     }
@@ -272,7 +273,7 @@ namespace DiceBot
 
                 bbResult tmp = json.JsonDeserialize<bbResult>(responseData);
                
-                if (tmp.error != 1)
+                if (tmp.error != 1 && tmp.info!=1)
                 {
                     next = tmp.nextServerSeed;
                     lastupdate = DateTime.Now;
@@ -290,13 +291,17 @@ namespace DiceBot
                     tmp2.date = DateTime.Now;
                     tmp2.serverhash = next;
                     next = tmp.nextServerSeed;
-
+                    tmp2.Guid = Guid;
                     FinishedBet(tmp2);
                     retrycount = 0;
                 }
                 else
                 {
-                    Parent.updateStatus("An error has occured! Betting has stopped for your safety.");
+                    if (tmp.info==1)
+                        Parent.updateStatus(tmp.infoMsg);
+                    else
+                        Parent.updateStatus("An error has occured! Betting has stopped for your safety.");
+                    
                 }
             }
             catch (WebException e)
@@ -309,7 +314,7 @@ namespace DiceBot
                 if (e.Message.Contains("429") || e.Message.Contains("502"))
                 {
                     Thread .Sleep(200);
-                    placebetthread(new PlaceBetObj(High, amount, chance));
+                    placebetthread(new PlaceBetObj(High, amount, chance, (BetObj as PlaceBetObj).Guid));
                 }
                 
 
@@ -320,10 +325,10 @@ namespace DiceBot
             }
         }
 
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
             this.High = High;
-            new Thread(new ParameterizedThreadStart(placebetthread)).Start(new PlaceBetObj(High, amount, chance));
+            new Thread(new ParameterizedThreadStart(placebetthread)).Start(new PlaceBetObj(High, amount, chance, Guid));
         }
 
        
@@ -587,6 +592,10 @@ namespace DiceBot
 
     public class bbResult
     {
+        //{"info":1,"infoCode":"BetTooSmall","infoMsg":"Error: Your bet is too small."}
+        public int info { get; set; }
+        public string infoCode { get; set; }
+        public string infoMsg { get; set; }
         public int error { get; set; }
         public int win { get; set; }
         public decimal balanceOrig { get; set; }
@@ -663,5 +672,9 @@ namespace DiceBot
     {
         public string deposit_address { get; set; }
     }
-    
+    public class PRCDepost
+    {
+        public bool Success { get; set; }
+        public string Address { get; set; }
+    }
 }

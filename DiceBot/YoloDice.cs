@@ -27,8 +27,10 @@ namespace DiceBot
         SslStream sslStream;
         long id = 0;
         string basestring = "{{\"id\":{0},\"method\":\"{1}\"{2}}}\r\n";
+        public static string[] cCurrencies = new string[] { "Btc", "Ltc","Eth" };
         public YoloDice(cDiceBot Parent)
         {
+            Currencies = cCurrencies;
             maxRoll = 99.9999m;
             _PasswordText = "API Key: ";
             AutoInvest = false;
@@ -46,9 +48,18 @@ namespace DiceBot
             SiteURL = "https://yolodice.com/#r-fexD-GR";
             _PasswordText = "Private Key";
         }
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void CurrencyChanged()
         {
-            string bet = string.Format("{{\"attrs\":{0}}}", json.JsonSerializer<YLBetSend>(new YLBetSend{ amount=(long)(amount*100000000), range=High?"hi":"lo", target=(int)(chance*10000)}));
+            ForceUpdateStats = true;
+        }
+        string Guid = "";
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
+        {
+            this.Guid = Guid;
+
+            string bet = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{{\"attrs\":{0}}}", 
+                json.JsonSerializer<YLBetSend>(
+                    new YLBetSend{ amount=(long)(amount*100000000), range=High?"hi":"lo", target=(int)(chance*10000), coin=Currency.ToLower()}));
             Write("create_bet", bet);
         }
         Random R = new Random();
@@ -64,16 +75,24 @@ namespace DiceBot
         }
         public override void Donate(decimal Amount)
         {
-            internalWithdraw(Amount, "1SeUNtjiMm5sdEgFrePWgF3J6kLCexJgj");
+            switch (Currency.ToLower())
+            {
+                case "btc": internalWithdraw(Amount, "1SeUNtjiMm5sdEgFrePWgF3J6kLCexJgj");break;
+                case "ltc": internalWithdraw(Amount, "LiGugsrKkhjRFqUcqFm1rLsdWjmyHx1W3G"); break;
+
+            }
+            
         }
         protected override bool internalWithdraw(decimal Amount, string Address)
         {
-            Write("create_withdrawal", "{\"attrs\": " + json.JsonSerializer<YLWithdrawal>(new YLWithdrawal { allow_pending=true, amount=(long)(Amount*100000000), to_address=Address }) + "}");
+
+            Write("create_withdrawal", "{\"attrs\": " + json.JsonSerializer<YLWithdrawal>(new YLWithdrawal {coin=Currency.ToLower(), allow_pending=true, amount=(long)(Amount*100000000), to_address=Address }) + "}");
+
             return true;
         }
 
 
-        byte[] ReadBuffer = new byte[256];
+        byte[] ReadBuffer = new byte[512];
         string challenge = "";
         string privkey = "";
         //long uid = 0;
@@ -92,7 +111,7 @@ namespace DiceBot
                     string frstchallenge = string.Format(basestring, id++, "generate_auth_challenge", "");
                     
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    int bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    int bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                     YLChallenge tmp =null;
                     try
@@ -125,7 +144,7 @@ namespace DiceBot
                     //{"id":1,"method":"auth_by_address","params":{"address":"1PUgaiHavJrpi7r7JhkhwWj7Kf9Ls68Z6w","signature":"Hz0oh29Nho+bVz7zggS1dqx\/N7VAyD6jsk8k98qW84ild7D71Q9rUbmEE4GIj0a5eKPcK1EjvSEwwa74jBJRyY8="}}
 
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                      YLOgin tmologin=null;
                     try
@@ -141,9 +160,9 @@ namespace DiceBot
 
                     uid = tmologin.result.id;
                     this.username = tmologin.result.name;
-                    frstchallenge = string.Format(basestring, id++, "read_user_data", ",\"params\":{\"selector\":{\"id\":" + uid + "}}");
+                    frstchallenge = string.Format(basestring, id++, "read_user_coin_data", ",\"params\":{\"selector\":{\"id\":\"" + uid+"_"+Currency.ToLower() + "\"}}");
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                     YLUserStats tmpstats = null;
                     try
@@ -205,13 +224,12 @@ namespace DiceBot
         {
             while (ispd)
             {
-                if ((DateTime.Now- lastupdate).TotalSeconds>15)
+                if ((DateTime.Now- lastupdate).TotalSeconds>15 || ForceUpdateStats)
                 {
+                    ForceUpdateStats = false;
                     lastupdate = DateTime.Now;
-                    Write("read_user_data", "{\"selector\":{\"id\":" + uid + "}}");
-                    //string frstchallenge = string.Format(basestring, id++, "read_user_data", "");
-                    //sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                
+                    Write("read_user_coin_data", "{\"selector\":{\"id\":\"" + uid+"_"+Currency.ToLower() + "\"}}");
+                    
                 }
                 Thread.Sleep(1000);
             }
@@ -224,20 +242,23 @@ namespace DiceBot
                 {
                     string response = "";
                     
-                    response = Encoding.ASCII.GetString(ReadBuffer, 0, 256);
+                    response = Encoding.ASCII.GetString(ReadBuffer, 0, 512);
+                    
                     response = response.Replace("\0", "");
+                    Parent.DumpLog(response, 10);
                     if (response != "")
                     {
                         
                         try
                         {
                             response = response.Substring(0, response.IndexOf("\n"));
+                            
                             YLBasicResponse tmprespo = json.JsonDeserialize<YLBasicResponse>(response);
                             if (Requests.ContainsKey(tmprespo.id))
                             {
                                 switch (Requests[tmprespo.id])
                                 {
-                                    case "read_user_data": ReadUser(response); break;
+                                    case "read_user_coin_data": ReadUser(response); break;
                                     case "create_bet": ProcessBet(response); break;
                                     case "read_current_seed": read_current_seed(response); break;
                                     case "read_seed": read_current_seed(response); break;
@@ -245,6 +266,7 @@ namespace DiceBot
                                     case "patch_seed": patch_seed(response); break;
                                     case "create_withdrawal": create_withdrawal(response); break;
                                     case "ping": ping(response); break;
+                                    
                                 }
                                 Requests.Remove(tmprespo.id);
                             }
@@ -263,13 +285,13 @@ namespace DiceBot
                         Auth();
                     }
                 }
-                ReadBuffer = new byte[256];
+                ReadBuffer = new byte[512];
                 if (apiclient.Connected)
                 {
                     try
                     {
                         sslStream.EndRead(result);
-                        sslStream.BeginRead(ReadBuffer, 0, 256, ReadTCP, sslStream);
+                        sslStream.BeginRead(ReadBuffer, 0, 512, ReadTCP, sslStream);
                     }
                     catch
                     {
@@ -293,7 +315,7 @@ namespace DiceBot
         }
         void Beginreadthread()
         {
-            sslStream.BeginRead(ReadBuffer, 0, 256, ReadTCP, sslStream);
+            sslStream.BeginRead(ReadBuffer, 0, 512, ReadTCP, sslStream);
             Write("read_current_seed", "{\"selector\":{\"user_id\":" + uid + "}}");
                         
         }
@@ -327,6 +349,7 @@ namespace DiceBot
             {
                 Bet tmp = new Bet()
                 {
+                    Guid=this.Guid,
                     Id = tmpbetrespo.id.ToString(),
                      Amount= (decimal)tmpbetrespo.amount/100000000m,
                       date= DateTime.Now,
@@ -334,7 +357,8 @@ namespace DiceBot
                         high = tmpbetrespo.range=="hi",
                          Profit= (decimal)tmpbetrespo.profit/100000000m,
                             Roll = (decimal)tmpbetrespo.rolled / 10000m,
-                             nonce = tmpbetrespo.nonce
+                             nonce = tmpbetrespo.nonce,
+                             Currency=tmpbetrespo.coin
                 };
                 bool sent = false;
                 DateTime StartWait = DateTime.Now;
@@ -423,7 +447,8 @@ namespace DiceBot
         }
         void create_withdrawal(string response)
         {
-            Write("read_user_data", "{\"selector\":{\"id\":" + uid + "}}");
+           
+            Write("read_user_coin_data", "{\"selector\":{\"id\":\"" + uid + "_" + Currency.ToLower() + "\"}}");
                     
         }
         void ping(string response)
@@ -488,7 +513,7 @@ namespace DiceBot
                     string frstchallenge = string.Format(basestring, id++, "generate_auth_challenge", "");
 
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    int bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    int bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                     YLChallenge tmp = null;
                     try
@@ -508,7 +533,7 @@ namespace DiceBot
                     frstchallenge = string.Format(basestring, id++, "auth_by_address", ",\"params\":" + json.JsonSerializer<YLAuthSend>(new YLAuthSend { address = address, signature = message }));
 
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                     YLOgin tmologin = null;
                     try
@@ -524,9 +549,9 @@ namespace DiceBot
 
                     uid = tmologin.result.id;
                     this.username = tmologin.result.name;
-                    frstchallenge = string.Format(basestring, id++, "read_user_data", ",\"params\":{\"selector\":{\"id\":" + uid + "}}");
+                    frstchallenge = string.Format(basestring, id++, "read_user_coin_data", ",\"params\":{\"selector\":{\"id\":\"" + uid + "_" + Currency.ToLower() + "\"}}");
                     sslStream.Write(Encoding.ASCII.GetBytes(frstchallenge));
-                    bytes = sslStream.Read(ReadBuffer, 0, 256);
+                    bytes = sslStream.Read(ReadBuffer, 0, 512);
                     challenge = Encoding.ASCII.GetString(ReadBuffer, 0, bytes);
                     YLUserStats tmpstats = null;
                     try
@@ -559,7 +584,7 @@ namespace DiceBot
                         lastupdate = DateTime.Now;
                         new Thread(new ThreadStart(BalanceThread)).Start();
                         new Thread(new ThreadStart(Beginreadthread)).Start(); 
-                        //sslStream.BeginRead(ReadBuffer, 0, 256, ReadTCP, sslStream);
+                        //sslStream.BeginRead(ReadBuffer, 0, 512, ReadTCP, sslStream);
                         //Write("read_current_seed", "{\"selector\":{\"user_id\":" + uid + "}}");
                         //privkey = Password;
                         //Thread.Sleep(50);
@@ -680,7 +705,8 @@ namespace DiceBot
     }
     public class YLUserStats
     {
-        public long id { get; set; }
+        public string id { get; set; }
+        //public long user_id { get; set; }
         public long bets { get; set; }
         public long wins { get; set; }
         public long losses { get; set; }
@@ -689,12 +715,13 @@ namespace DiceBot
         public long profit_min  { get; set; }
         public long profit_max  { get; set; }
         public decimal luck   { get; set; }
-        public long chat_message_count  { get; set; }
+        //public long chat_message_count  { get; set; }
         public long balance  { get; set; }
         public YLUserStats result { get; set; }
     }
     public class YLBetResponse
     {
+        public string coin { get; set; }
         public long id { get; set; }
         public YLBetResponse result { get; set; }
         public YLOgin user { get; set; }
@@ -715,6 +742,7 @@ namespace DiceBot
         public long amount { get; set; }
         public string range { get; set; }
         public int target { get; set; }
+        public string coin { get; set; }
     }
     public class YLSeed
     {
@@ -733,5 +761,10 @@ namespace DiceBot
         public string to_address { get; set; }
         public long amount { get; set; }
         public bool allow_pending { get; set; }
+        public string coin { get; set; }
+    }
+    public class YLUserCoin
+    {
+        
     }
 }

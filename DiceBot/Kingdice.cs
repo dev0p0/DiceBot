@@ -80,10 +80,10 @@ namespace DiceBot
                 Thread.Sleep(1000);
             }
         }
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
             this.High = High;
-            new Thread(new ParameterizedThreadStart(PlacebetThread)).Start(new PlaceBetObj(High, amount, chance));
+            new Thread(new ParameterizedThreadStart(PlacebetThread)).Start(new PlaceBetObj(High, amount, chance, Guid));
         }
         Random R = new Random();
         void PlacebetThread(object RollObject)
@@ -114,6 +114,7 @@ namespace DiceBot
                     {
                         Bet tmpBet = new Bet
                         {
+                            Guid=tmp5.Guid,
                             Amount = amount,
                             date = DateTime.Now,
                             Id = tmp.roll_id.ToString(),
@@ -217,7 +218,7 @@ namespace DiceBot
                 pairs.Add(new KeyValuePair<string, string>("token", accesstoken));
 
                 FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
-                string sEmitResponse = Client.PostAsync("invest/invest.php?", Content).Result.Content.ReadAsStringAsync().Result;
+                string sEmitResponse = Client.PostAsync("cgi-bin/api.pl?op=invest?", Content).Result.Content.ReadAsStringAsync().Result;
 
                 return sEmitResponse.Contains("SUCCESS");
                 ForceUpdateStats = true;

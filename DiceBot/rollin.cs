@@ -83,7 +83,7 @@ namespace DiceBot
                 //bool High = (bool)_High;
                 decimal tmpchance = High ? maxRoll - chance : chance;
                 string sendchance = tmpchance.ToString("0", System.Globalization.NumberFormatInfo.InvariantInfo);
-                Parent.updateStatus(string.Format("Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
+                Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
                
                 string jsoncontent = json.JsonSerializer<RollinBetPlace>(new RollinBetPlace {
                     bet_amount = decimal.Parse((amount * 1000).ToString("0.00000", System.Globalization.NumberFormatInfo.InvariantInfo), System.Globalization.NumberFormatInfo.InvariantInfo),
@@ -106,6 +106,7 @@ namespace DiceBot
                 else
                 {
                     Bet tmp2 = tmp.ToBet();
+                    tmp2.Guid = tmp9.Guid;
                     tmp2.serverhash = server_hash;
                     server_hash = tmp.customer.server_hash;
                     balance = decimal.Parse(tmp.customer.balance, System.Globalization.NumberFormatInfo.InvariantInfo) / 1000.0m;
@@ -141,11 +142,11 @@ namespace DiceBot
             }
 
         }
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
 
             Thread T = new Thread(new ParameterizedThreadStart(PlaceBetThread));
-            T.Start(new PlaceBetObj(High, amount, chance));
+            T.Start(new PlaceBetObj(High, amount, chance, Guid));
         }
 
         public override void ResetSeed()
@@ -273,7 +274,7 @@ namespace DiceBot
 
                 betrequest.Method = "POST";
 
-                string post = string.Format("username={0}&password={1}&code={2}", Username, Password, twofa);
+                string post = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"username={0}&password={1}&code={2}", Username, Password, twofa);
                 betrequest.ContentLength = post.Length;
                 betrequest.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
                 betrequest.Headers.Add("X-API-KEY", Token);
@@ -392,7 +393,7 @@ namespace DiceBot
                 betrequest.Proxy = Prox;
             betrequest.CookieContainer = cookies;
             betrequest.Method = "POST";
-            string post = string.Format("username={0}", username);
+            string post = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"username={0}", username);
             betrequest.ContentLength = post.Length;
             betrequest.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
             betrequest.Headers.Add("X-CSRF-Token", Token);
@@ -408,7 +409,7 @@ namespace DiceBot
                 betrequest.Proxy = Prox;
             betrequest.CookieContainer = cookies;
             betrequest.Method = "POST";
-            post = string.Format("old=&new={0}&confirm={0}", password);
+            post = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"old=&new={0}&confirm={0}", password);
             betrequest.ContentLength = post.Length;
             betrequest.ContentType = "application/x-www-form-urlencoded; charset=UTF-8";
             betrequest.Headers.Add("X-CSRF-Token", Token);

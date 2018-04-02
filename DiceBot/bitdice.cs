@@ -16,7 +16,7 @@ namespace DiceBot
     class bitdice:DiceSite
     {
 
-        public static string[] cCurrencies = new string[] { "btc", "doge", "ltc", "eth" };
+        public static string[] cCurrencies = new string[] { "btc", "doge", "ltc", "eth","csno" };
         WebSocket Client;// = new WebSocket("");
         public bitdice(cDiceBot Parent)
         {
@@ -37,7 +37,7 @@ namespace DiceBot
             Client.Closed += Client_Closed;
             Client.MessageReceived += Client_MessageReceived;*/
             AutoUpdate = false;
-            Currencies = new string[] { "btc", "doge", "ltc", "eth" };
+            Currencies = new string[] { "btc", "doge", "ltc", "eth", "csno" };
         }
 
         void getDeposit(string html)
@@ -50,9 +50,9 @@ namespace DiceBot
         {
             try
             {
-                //Parent.DumpLog(e.Message, 4);
+                Parent.DumpLog(e.Message, 4);
                 string s = e.Message.Replace("\\\"", "\"").Replace("\"{","{").Replace("}\"","}");
-                //Parent.DumpLog("", -1);
+                //Parent.DumpLog(e.Message, -1);
                 //Parent.DumpLog("", -1);
                 //Parent.DumpLog(s,-1);
                 bitdicebetbase tmp = json.JsonDeserialize<bitdicebetbase>(s);
@@ -84,7 +84,8 @@ namespace DiceBot
                         case "btc": balance = decimal.Parse(tmp2.message.data.wallets.btc.balance, System.Globalization.NumberFormatInfo.InvariantInfo); break;
                         case "ltc": balance = decimal.Parse(tmp2.message.data.wallets.ltc.balance, System.Globalization.NumberFormatInfo.InvariantInfo); break;
                         case "eth": balance = decimal.Parse(tmp2.message.data.wallets.eth.balance, System.Globalization.NumberFormatInfo.InvariantInfo); break;
-                            
+                        case "csno": balance = decimal.Parse(tmp2.message.data.wallets.eth.balance, System.Globalization.NumberFormatInfo.InvariantInfo); break;
+
                     }
                     Parent.updateBalance(balance);
                 }
@@ -145,6 +146,7 @@ namespace DiceBot
 
             Bet newbet = new Bet()
             {
+                Guid=this.Guid,
                 Id = Bet.message.data.bet.id.ToString(),
                  Amount=decimal.Parse(Bet.message.data.bet.amount, System.Globalization.NumberFormatInfo.InvariantInfo),
                   date=DateTime.Now,
@@ -179,7 +181,7 @@ namespace DiceBot
 
         void Client_Error(object sender, SuperSocket.ClientEngine.ErrorEventArgs e)
         {
-            
+            Parent.DumpLog(e.Exception.ToString(), -1);
         }
 
         bool loggedin = false;
@@ -207,16 +209,19 @@ namespace DiceBot
 
         int id = 1;
         Random R = new Random();
+        string Guid = "";
         //BitDiceClient Client = new BitDiceClient();
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance,string Guid)
         {
+            this.Guid = Guid;
             string clientsee = "";
             while (clientsee.Length<"3ebbd6d21ca843b6".Length-1)
             {
                 clientsee += R.Next(0, 16 * 16).ToString("X");
             }
             //string server = "";
-            string s = string.Format("{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"DiceChannel\\\"}}\",\"data\":\"{{\\\"amount\\\":{0},\\\"chance\\\":\\\"{1}\\\",\\\"type\\\":\\\"{2}\\\",\\\"client\\\":\\\"{4}\\\",\\\"server\\\":{5},\\\"hot_key\\\":false,\\\"manual\\\":true,\\\"number\\\":{3},\\\"action\\\":\\\"bet\\\"}}\"}}",
+            //{"command":"message","identifier":"{\"channel\":\"DiceChannel\"}","data":"{\"amount\":0.000001,\"chance\":\"49.5\",\"type\":\"high\",\"client\":\"7423c4d0ded01788\",\"server\":29671274,\"hot_key\":false,\"manual\":true,\"number\":2,\"action\":\"bet\"}"}
+            string s = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"DiceChannel\\\"}}\",\"data\":\"{{\\\"amount\\\":{0},\\\"chance\\\":\\\"{1}\\\",\\\"type\\\":\\\"{2}\\\",\\\"client\\\":\\\"{4}\\\",\\\"server\\\":{5},\\\"hot_key\\\":false,\\\"manual\\\":true,\\\"number\\\":{3},\\\"action\\\":\\\"bet\\\"}}\"}}",
                 amount, chance, High ? "high" : "low", id++, clientsee.ToLower(), server);
             Parent.DumpLog(s, 5);
             if (Client.State == WebSocketState.Open)
@@ -260,7 +265,7 @@ namespace DiceBot
         }
         protected override bool internalWithdraw(decimal Amount, string Address)
         {
-            string s = string.Format("{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"WalletChannel\\\"}}\",\"data\":\"{{\\\"code\\\":\\\"\\\",\\\"amount\\\":\\\"{0}\\\",\\\"address\\\":\\\"{1}\\\",\\\"number\\\":{2},\\\"action\\\":\\\"withdraw\\\"}}\"}}", Amount, Address, id++);
+            string s = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"WalletChannel\\\"}}\",\"data\":\"{{\\\"code\\\":\\\"\\\",\\\"amount\\\":\\\"{0}\\\",\\\"address\\\":\\\"{1}\\\",\\\"number\\\":{2},\\\"action\\\":\\\"withdraw\\\"}}\"}}", Amount, Address, id++);
             if (Client.State == WebSocketState.Open)
             {
                 Client.Send(s);
@@ -362,8 +367,9 @@ user[password]:asdfasdfasdf*/
                             finishedlogin(false);
                             return;
                         }
+                         sEmitResponse = WebClient.GetAsync("dashboard").Result.Content.ReadAsStringAsync().Result;
 
-                    }
+                }
                 catch
                     {
                         finishedlogin(false);
@@ -377,14 +383,27 @@ user[password]:asdfasdfasdf*/
                 
                 List<KeyValuePair<string, string>> headers = new List<KeyValuePair<string, string>>();
                 List<KeyValuePair<string, string>> cookies2 = new List<KeyValuePair<string, string>>();
+                string cookie = "";
                 foreach ( Cookie x in ClientHandlr.CookieContainer.GetCookies(new Uri("https://www.bitdice.me")))
                 {
-                    cookies2.Add(new KeyValuePair<string, string>(x.Name, x.Value));
+                    if (x.Name.ToLower()=="token")
+                        cookies2.Add(new KeyValuePair<string, string>(x.Name, x.Value.Replace("%3D","=")));
+                    else
+                        cookies2.Add(new KeyValuePair<string, string>(x.Name, x.Value));
+                    
                 }
+                for (int i=0; i< cookies2.Count;i++)
+                {
+                    if (i != 0)
+                        cookie += "; ";
+                    cookie += cookies2[i].Key + "=" + cookies2[i].Value;
+                }
+                //cookies2.Add(new KeyValuePair<string, string>("Authorized", "1"));
+                
                 
                 headers.Add(new KeyValuePair<string, string>("User-Agent", "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0"));
-
-                Client = new WebSocket("wss://www.bitdice.me/socket/?token=" + stream, "actioncable-v1-json", cookies2, headers, "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0",
+                    
+                Client = new WebSocket("wss://www.bitdice.me/socket"/*/?token=" + stream*/, "actioncable-v1-json", cookies2, headers, "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:43.0) Gecko/20100101 Firefox/43.0",
                     "https://www.bitdice.me", WebSocketVersion.Rfc6455, null, System.Security.Authentication.SslProtocols.Tls| System.Security.Authentication.SslProtocols.Tls11| System.Security.Authentication.SslProtocols.Tls12);
                 
                 
@@ -465,9 +484,9 @@ user[password]:asdfasdfasdf*/
         {
             if (Client.State == WebSocketState.Open)
             {
-                Client.Send(string.Format("{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"ChatChannel\\\"}}\",\"data\":\"{{\\\"message\\\":\\\"/tip {0} {1}\\\",\\\"action\\\":\\\"chat\\\"}}\"}}", User, amount));
+                Client.Send(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"{{\"command\":\"message\",\"identifier\":\"{{\\\"channel\\\":\\\"ChatChannel\\\"}}\",\"data\":\"{{\\\"message\\\":\\\"/tip {0} {1}\\\",\\\"action\\\":\\\"chat\\\"}}\"}}", User, amount));
             }
-            //SendChatMessage(string.Format("/tip {0} {1:0.00000000}", User, amount));
+            //SendChatMessage(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"/tip {0} {1:0.00000000}", User, amount));
             return true;
         }
         string cookie = "";
@@ -503,8 +522,7 @@ user[password]:asdfasdfasdf*/
         }
         public static bool Enable(string token)
         {
-            //data[info=eyJsYW5nIjoiZW4tVVMsIGVuIiwicGxhdGZvcm0iOiJXaW4zMiIsImNwdSI6OCwic2l6ZSI6IjE5MjB4MzY0MyAoMTkyMHgxMDgwKSIsIndlYnJ0YyI6IjE2OS4yNTQuODAuODAsIDE5Mi4xNjguMS4zIiwidGltZXpvbmUiOiJBZnJpY2EvSm9oYW5uZXNidXJnIiwidGltZSI6IlNhdCBEZWMgMDMgMjAxNiAxMDoxMTo0MyBHTVQrMDIwMCAoU291dGggQWZyaWNhIFN0YW5kYXJkIFRpbWUpIn0=
-            //token=017f8216daa8349d55170806c0e02cef66252acc082616dc7be742e6c9b5081d
+            
             try
             {
 
@@ -661,6 +679,7 @@ user[password]:asdfasdfasdf*/
         public bitdicewallet ltc { get; set; }
         public bitdicewallet doge { get; set; }
         public bitdicewallet eth { get; set; }
+        public bitdicewallet csno { get; set; }
     }
     public class bitdicewallet
     {

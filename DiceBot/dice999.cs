@@ -20,7 +20,7 @@ namespace DiceBot
         
          bool isD999 = false;
         
-        public static string[] cCurrencies =new string[] { "btc","doge","ltc","eth" };
+        public static string[] cCurrencies =new string[] { "btc","doge","ltc","eth","xmr" };
         HttpClientHandler ClientHandlr;
         HttpClient Client;// = new HttpClient { BaseAddress = new Uri("https://www.999dice.com/api/web.aspx") };
         public dice999(cDiceBot Parent, bool doge999)
@@ -42,8 +42,8 @@ namespace DiceBot
             t.Start();*/
             this.Parent = Parent;
             Name = "999Dice";
-            Tip = false;
-            TipUsingName = true;
+            Tip = true;
+            TipUsingName = false;
             Currency = "btc";
             Currencies = cCurrencies;
             /*Thread tChat = new Thread(GetMessagesThread);
@@ -141,7 +141,7 @@ namespace DiceBot
                 decimal amount = tmp9.Amount;
                 //decimal chance = tmp9.Chance;
 
-                Parent.updateStatus(string.Format("Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, tmp9.Chance, High ? "High" : "Low"));
+                Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, tmp9.Chance, High ? "High" : "Low"));
 
                 decimal chance = (999999.0m) * (tmp9.Chance / 100.0m);
                 //HttpWebResponse EmitResponse;
@@ -262,6 +262,7 @@ namespace DiceBot
 
                     profit += -(amount) + (decimal)(tmpBet.PayOut / 100000000m);
                     Bet tmp = new Bet();
+                    tmp.Guid = tmp9.Guid;
                     tmp.Amount = (decimal)amount;
                     tmp.date = DateTime.Now;
                     tmp.Chance = ((decimal)chance * 100m) / 999999m;
@@ -296,8 +297,9 @@ namespace DiceBot
                     FinishedBet(tmp);
                 }
             }
-            catch
+            catch (Exception e)
             {
+                Parent.DumpLog(e.ToString(),-1);
                 if (err != "")
                     Parent.updateStatus(err);
                 else
@@ -305,11 +307,11 @@ namespace DiceBot
             }
         }
 
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string guid)
         {
             this.High = High;
             Thread t = new Thread(new ParameterizedThreadStart(PlaceBetThread));
-            t.Start(new PlaceBetObj(High, amount, chance));
+            t.Start(new PlaceBetObj(High, amount, chance, guid));
         }
 
         public override void ResetSeed()
@@ -348,14 +350,45 @@ namespace DiceBot
 
         public override void Donate(decimal Amount)
         {
-            
-            switch (Currency.ToLower())
+            InternalSendTip("20073598", Amount);
+            /*switch (Currency.ToLower())
             { 
                 case "btc": internalWithdraw(Amount, "1BoHcFQsUSot7jkHJcZMh1iUda3tEjzuBW");break;
                 case "ltc": internalWithdraw(Amount,"LUzfcpLCy7SdXZbSiJwEmZarvCzgXbfubS");break;
                 case "doge":internalWithdraw(Amount,"DAqsyP2H5vqhc9PTfbjd7nr6r8tCFRWcFJ");break;
                 case "eth":internalWithdraw(Amount,"0x77a4220ca85d4103e008eb88ae15f5ac7da0660d");break;
+            }*/
+        }
+
+        public override bool InternalSendTip(string User, decimal amount)
+        {
+            List<KeyValuePair<string, string>> pairs = new List<KeyValuePair<string, string>>();
+            pairs.Add(new KeyValuePair<string, string>("a", "Withdraw"));
+            pairs.Add(new KeyValuePair<string, string>("s", sessionCookie));
+            pairs.Add(new KeyValuePair<string, string>("Currency", Currency));
+            pairs.Add(new KeyValuePair<string, string>("Amount", (amount * 100000000m).ToString("0", System.Globalization.NumberFormatInfo.InvariantInfo)));
+            pairs.Add(new KeyValuePair<string, string>("Address", User));
+
+            FormUrlEncodedContent Content = new FormUrlEncodedContent(pairs);
+            string responseData = "";
+            using (var response = Client.PostAsync("", Content))
+            {
+                while (!response.IsCompleted)
+                    Thread.Sleep(100);
+                try
+                {
+                    responseData = response.Result.Content.ReadAsStringAsync().Result;
+                }
+                catch (AggregateException e)
+                {
+                    if (e.InnerException.Message.Contains("ssl"))
+                    {
+                        return InternalSendTip(User, amount);
+                    }
+                }
             }
+
+            return true;
         }
 
         protected override bool internalWithdraw(decimal Amount, string Address)
@@ -393,7 +426,11 @@ namespace DiceBot
         decimal Wagered = 0;
         int site = 0;
         bool thing = false;
-        string[] SiteA = new string[] {"https://www.999dice.com/api/web.aspx" , "https://www.999doge.com/api/web.aspx", "https://www.999-dice.com/api/web.aspx","http://999again.ddns.net:999/"};
+        string[] SiteA = new string[] {"https://www.999dice.com/api/web.aspx" ,
+            "https://www.999proxy.com/api/web.aspx",
+            "https://www.999doge.com/api/web.aspx",
+            "https://www.999-dice.com/api/web.aspx",
+            "http://999again.ddns.net:999/api/web.aspx" };
 
         public override void Login(string Username, string Password, string twofa)
         {

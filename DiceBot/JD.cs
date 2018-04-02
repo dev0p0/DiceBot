@@ -109,14 +109,16 @@ namespace DiceBot
 
                 profit = Instance.Profit;
                 wagered = Instance.Wagered;
-
-                FinishedBet(ToBet(result));
+                Bet tmp = ToBet(result);
+                tmp.Guid = Guid;
+                FinishedBet(tmp);
             }
         }
-
-        protected override void internalPlaceBet(bool High, decimal amount, decimal chance)
+        string Guid = "";
+        protected override void internalPlaceBet(bool High, decimal amount, decimal chance, string Guid)
         {
-            Parent.updateStatus(string.Format("Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
+            this.Guid = Guid;
+            Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
             Instance.Bet((double)chance, (double)amount, High);
         }
 
@@ -146,7 +148,7 @@ namespace DiceBot
         public override bool Invest(decimal Amount)
         {
             
-            Parent.updateStatus(string.Format("Investing {0:0.00000000}", Amount));
+            Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Investing {0:0.00000000}", Amount));
             Instance.Invest((double)Amount,"");
             System.Threading.Thread.Sleep(1500);
             return true;
@@ -216,7 +218,7 @@ namespace DiceBot
             int uid = -1;
             if (int.TryParse(Username, out uid))
             {
-                Instance.Chat(string.Format("/tip noconf {0} {1:0.00000000}", uid, Amount));
+                Instance.Chat(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"/tip noconf {0} {1:0.00000000}", uid, Amount));
                 return true;
             }
             else

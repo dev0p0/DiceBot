@@ -60,7 +60,7 @@ namespace DiceBot
                 string sitename = (sqlBetObj as sqbet).SiteName;
                 try
                 {
-                    Command.CommandText = string.Format("insert into seed(hash,server) values('{0}','{1}')", curbet.serverhash, curbet.serverseed, sitename);
+                    Command.CommandText = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"insert into seed(hash,server) values('{0}','{1}')", curbet.serverhash, curbet.serverseed, sitename);
                     Command.ExecuteNonQuery();
                 }
                 catch
@@ -68,10 +68,10 @@ namespace DiceBot
 
 
                 }
-                Command.CommandText = string.Format("insert into bet(betid, date,stake,profit,chance,high,lucky,hash,nonce,uid,client,site) values('{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{0}')",
+                Command.CommandText = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"insert into bet(betid, date,stake,profit,chance,high,lucky,hash,nonce,uid,client,site) values('{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{0}')",
                         sitename,
                         curbet.Id,
-                        curbet.date,
+                        curbet.date.ToString("yyyy-MM-dd HH:mm:ss"),
                         curbet.Amount,
                         curbet.Profit,
                         curbet.Chance,
@@ -99,7 +99,7 @@ namespace DiceBot
                 SQLiteCommand Command = new SQLiteCommand("", sqcon);
                 try
                 {
-                    Command.CommandText = string.Format("insert into seed(hash,server) values('{0}','{1}')", curbet.serverhash, curbet.serverseed, sitename);
+                    Command.CommandText = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"insert into seed(hash,server) values('{0}','{1}')", curbet.serverhash, curbet.serverseed, sitename);
                     Command.ExecuteNonQuery();
                 }
                 catch
@@ -107,7 +107,7 @@ namespace DiceBot
                     
 
                 }
-                Command.CommandText = string.Format("insert into bet(betid, date,stake,profit,chance,high,lucky,hash,nonce,uid,client,site) values('{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{0}')",
+                Command.CommandText = string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"insert into bet(betid, date,stake,profit,chance,high,lucky,hash,nonce,uid,client,site) values('{1}','{2}','{3}','{4}','{5}','{6}','{7}','{8}','{9}','{10}','{11}','{0}')",
                     sitename,
                     curbet.Id,
                     curbet.date,
@@ -162,7 +162,7 @@ namespace DiceBot
                     case "PrimeDice": tmp.Verified = tmp.Roll == (decimal)PD.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "999Dice": tmp.Verified = tmp.Roll== (decimal)dice999.sGetLucky(tmp.serverseed, (tmp.clientseed), (int)tmp.nonce, /*(long)(tmp.Roll*10000m),*/ tmp.serverhash); break;
                     case "SafeDice": tmp.Verified = tmp.Roll == (decimal)SafeDice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
-                    case "PRCDice": tmp.Verified = tmp.Roll == (decimal)PRC.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
+                    case "BetKing": tmp.Verified = tmp.Roll == (decimal)BetKing.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "RollinIO": tmp.Verified = tmp.Roll == (decimal)rollin.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "BitDice": tmp.Verified = tmp.Roll == (decimal)bitdice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "BetterBets": tmp.Verified = tmp.Roll == (decimal)BB.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
@@ -178,6 +178,8 @@ namespace DiceBot
                     case "Bitvest": tmp.Verified = tmp.Roll == (decimal)Bitvest.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "KingDice": tmp.Verified = tmp.Roll == (decimal)Kingdice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                     case "YoloDice": tmp.Verified = tmp.Roll == (decimal)YoloDice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
+                    case "DuckDice": tmp.Verified = tmp.Roll == (decimal)DuckDice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce);break;
+                    case "NitroDice": tmp.Verified = tmp.Roll == (decimal)NitroDice.sGetLucky(tmp.serverseed, tmp.clientseed, (int)tmp.nonce); break;
                 }
             }
             return tmp;
@@ -300,8 +302,9 @@ namespace DiceBot
                     ////sqcon.close();
                     return Bets.ToArray();
                 }
-                catch
+                catch (Exception e)
                 {
+
                 }
                 ////sqcon.close();
             }
@@ -317,7 +320,7 @@ namespace DiceBot
                 try
                 {
                   //  sqcon.Open();
-                    SQLiteCommand Command = new SQLiteCommand("select bet.*, seed.server from bet, seed where bet.hash=seed.hash and date>='" + StartDate.ToLongDateString() + " " + StartDate.ToLongTimeString() + "' and date<='" + EndDate.ToLongDateString() + " " + EndDate.ToLongTimeString() + "' ", sqcon);
+                    SQLiteCommand Command = new SQLiteCommand("select bet.*, seed.server from bet, seed where bet.hash=seed.hash and date>='" + StartDate.ToString("yyyy-MM-dd HH:mm:ss") + "' and date<='" + EndDate.ToString("yyyy-MM-dd HH:mm:ss") + "' ", sqcon);
                     if (site != "")
                     {
                         Command.CommandText += " and site = '" + site + "'";

@@ -44,7 +44,21 @@ namespace DiceBot
             get { return _MFAText; }
             
         }
-        
+        private string xtraText="2FA Code:";
+
+        public string XtraText
+        {
+            get { return xtraText; }
+            set { xtraText = value; }
+        }
+        private bool showXtra=false;
+
+        public bool ShowXtra
+        {
+            get { return showXtra; }
+            set { showXtra = value; }
+        }
+
 
         private bool _NonceBased=true;
         public bool NonceBased
@@ -85,10 +99,31 @@ namespace DiceBot
         public bool ForceUpdateStats = false;
         public bool AutoUpdate = true;
 
-        public void PlaceBet(bool High, decimal amount, decimal chance)
+        public int GetWins()
         {
-            Parent.updateStatus(string.Format("Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
-            internalPlaceBet(High,amount, chance);
+            return wins;
+        }
+        public decimal GetProfit()
+        {
+            return profit;
+        }
+        public decimal GetWagered()
+        {
+            return wagered;
+        }
+        public int GetLosses()
+        {
+            return losses;
+        }
+        public int GetBets()
+        {
+            return bets;
+        }
+        
+        public void PlaceBet(bool High, decimal amount, decimal chance, string BetGuid)
+        {
+            Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Betting: {0:0.00000000} at {1:0.00000000} {2}", amount, chance, High ? "High" : "Low"));
+            internalPlaceBet(High,amount, chance, BetGuid);
         }
         protected void FinishedBet(Bet newBet)
         {
@@ -102,7 +137,7 @@ namespace DiceBot
             Parent.GetBetResult(balance, newBet);
                 
         }
-        protected abstract void internalPlaceBet(bool High,decimal amount, decimal chance);
+        protected abstract void internalPlaceBet(bool High,decimal amount, decimal chancem, string BetGuid);
         public abstract void ResetSeed();
         public abstract void SetClientSeed(string Seed);
         public virtual bool Invest(decimal Amount)
@@ -116,7 +151,7 @@ namespace DiceBot
         }
         public bool Withdraw(decimal Amount, string Address)
         {
-            Parent.updateStatus(string.Format("Withdrawing {0} {1} to {2}", Amount, currency, Address));
+            Parent.updateStatus(string.Format( System.Globalization.NumberFormatInfo.InvariantInfo,"Withdrawing {0} {1} to {2}", Amount, currency, Address));
             bool res = internalWithdraw(Amount, Address);
 
             if (res)
@@ -268,15 +303,17 @@ namespace DiceBot
     }
     public class PlaceBetObj
     {
-        public PlaceBetObj(bool High, decimal Amount, decimal Chance)
+        public PlaceBetObj(bool High, decimal Amount, decimal Chance, string Guid)
         {
             this.High = High;
             this.Amount = Amount;
             this.Chance = Chance;
+            this.Guid = Guid;
         }
         public bool High { get; set; }
         public decimal Amount { get; set; }
         public decimal Chance { get; set; }
+        public string Guid { get; set; }
     }
 
 }
